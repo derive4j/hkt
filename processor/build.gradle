@@ -1,0 +1,15 @@
+import org.gradle.internal.jvm.Jvm
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+dependencies {
+    compile javaPoet
+    compile files(Jvm.current().toolsJar)
+
+    compileOnly "org.derive4j:derive4j-annotation:${derive4jVersion}"
+    compileOnly autoService
+
+    apt "org.derive4j:derive4j:${derive4jVersion}"
+    apt autoService
+}
