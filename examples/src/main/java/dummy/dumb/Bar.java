@@ -1,12 +1,11 @@
 package dummy.dumb;
 
-import org.derive4j.hkt.__;
-
+// Uncomment the various regions to check the processor behaviour
 public class Bar {
 
-    static class InnerClass<T> implements __<Bar, Void> {
-        public static final class µ {}
-    }
+//    static class InnerClass<T, S, U, L, P> implements __<Bar, Void> {
+//        public static final class µ {}
+//    }
 
     static class StaticInnerClass {
         StaticInnerClass() {
@@ -26,4 +25,4 @@ public class Bar {
     }
 }
 
-class CompanionClass {}
+//class CompanionClass<A> implements __2<Void, Void, Void> {}
