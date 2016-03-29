@@ -4,6 +4,7 @@ sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 dependencies {
+    compile project(":types")
     compile javaPoet
     compile files(Jvm.current().toolsJar)
 
