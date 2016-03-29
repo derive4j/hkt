@@ -24,6 +24,7 @@ import javax.tools.Diagnostic;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -42,17 +43,28 @@ public final class HktProcessor extends AbstractProcessor {
     private Elements Elts;
     private Messager Messager;
     private Trees JTrees;
-    private TypeElement hktType;
+
+    private TypeElement __Elt;
+    private TypeElement __2Elt;
+    private TypeElement __3Elt;
+    private TypeElement __4Elt;
+    private TypeElement __5Elt;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
+
         Filer = processingEnv.getFiler();
         Types = processingEnv.getTypeUtils();
         Elts = processingEnv.getElementUtils();
         Messager = processingEnv.getMessager();
         JTrees = Trees.instance(processingEnv);
-        hktType = Elts.getTypeElement(__.class.getCanonicalName());
+
+        __Elt = Elts.getTypeElement(__.class.getCanonicalName());
+        __2Elt = Elts.getTypeElement(__2.class.getCanonicalName());
+        __3Elt = Elts.getTypeElement(__3.class.getCanonicalName());
+        __4Elt = Elts.getTypeElement(__4.class.getCanonicalName());
+        __5Elt = Elts.getTypeElement(__5.class.getCanonicalName());
     }
 
     @Override
@@ -61,24 +73,19 @@ public final class HktProcessor extends AbstractProcessor {
 
             final Stream<TypeElement> allTypes = ElementFilter
                 .typesIn(roundEnv.getRootElements())
-                .stream()
+                .parallelStream()
                 .flatMap(tel -> Stream
                     .concat(Stream.of(tel), getAllInnerTypes(tel)));
 
             final Stream<TypeElement> targetTypes = allTypes.filter(this::implementsHkt);
 
-            final Stream<Repr> reprs = targetTypes.map(tel -> {
-                final DeclaredType decl =
-                    getHktDecl(tel).get(); // safe since we previously discarded types that don't implement Hkt (__)
-
-                return cata(getInnerµ(tel)
-                    , µ -> Reprs.Hasµ(tel, decl, µ)
-                    , () -> Reprs.Noµ(tel));
-            });
+            final Stream<Repr> reprs = targetTypes.map(tel -> cata(getInnerµ(tel)
+                , µ -> Reprs.Hasµ(tel, getHktDecl(tel).get(), µ) // Optionnal.get safe since we previously discarded types that don't implement Hkt (__ or __2 or etc...)
+                , () -> Reprs.Noµ(tel)));
 
             final Stream<Report> reports = reprs.map(Reprs.cases()
                 .Noµ(Reports::Noµ)
-                .Hasµ(this::correctHtkImpl));
+                .Hasµ(this::validateRepr));
 
             reports.forEach(this::reportErrors);
         }
@@ -112,26 +119,8 @@ public final class HktProcessor extends AbstractProcessor {
 
         return allTypes.isEmpty()
             ? Stream.empty()
-            : Stream
-            .concat(allTypes.stream()
-                , allTypes.stream().flatMap(this::getAllInnerTypes));
-    }
-
-    private boolean implementsHkt(TypeElement tel) {
-        return Types.isSubtype(tel.asType(), Types.erasure(hktType.asType()));
-    }
-
-    private Optional<DeclaredType> getHktDecl(TypeElement tel) {
-        return
-        tel.getInterfaces()
-            .stream()
-            .filter(this::isHkt)
-            .findAny()
-            .flatMap(tm -> tm.accept(new DeclaredTypeVisitor(), Unit.unit));
-    }
-
-    private boolean isHkt(TypeMirror tm) {
-        return Types.isSameType(Types.erasure(tm), Types.erasure(hktType.asType()));
+            : Stream.concat
+            (allTypes.stream(), allTypes.parallelStream().flatMap(this::getAllInnerTypes));
     }
 
     private Optional<Mu> getInnerµ(TypeElement elt) {
@@ -146,16 +135,56 @@ public final class HktProcessor extends AbstractProcessor {
                 .map(decl -> Mus.of(tel, Types.asMemberOf(decl, tel))));
     }
 
-    private Report correctHtkImpl(TypeElement elt, DeclaredType decl, Mu µ) {
-        return cata(decl.getTypeArguments().stream().findFirst()
+    private boolean implementsHkt(TypeElement tel) {
+        return Types.isSubtype(tel.asType(), Types.erasure(__Elt.asType()));
+    }
 
-            , tm -> Types.isSameType(tm, Mus.getAsMirror(µ))
-                ? Reports.Correct()
-                : isHkt(tm)
-                ? correctHtkImpl(elt, tm.accept(new DeclaredTypeVisitor(), Unit.unit).get(), µ)
-                : Reports.WrongImpl(elt)
+    private Optional<DeclaredType> getHktDecl(TypeElement tel) {
+        return
+        tel.getInterfaces()
+            .stream()
+            .filter(this::isHkt)
+            .findAny()
+            .flatMap(tm -> tm.accept(new DeclaredTypeVisitor(), Unit.unit));
+    }
 
-            , () -> Reports.WrongImpl(elt));
+    private boolean isHkt(TypeMirror tm) {
+        final Function<TypeMirror, Boolean> isSameType =
+            curry(Types::isSameType).apply(Types.erasure(tm));
+
+        return isSameType.apply(Types.erasure(__Elt.asType()))
+            || isSameType.apply(Types.erasure(__2Elt.asType()))
+            || isSameType.apply(Types.erasure(__3Elt.asType()))
+            || isSameType.apply(Types.erasure(__4Elt.asType()))
+            || isSameType.apply(Types.erasure(__5Elt.asType()));
+    }
+
+    private Report validateRepr(TypeElement elt, DeclaredType decl, Mu µ) {
+        final TypeMirror[] eltParams =
+            elt.getTypeParameters()
+                .stream()
+                .map(Element::asType)
+                .toArray(TypeMirror[]::new);
+
+        final TypeElement refType;
+        switch (eltParams.length) {
+            case 1 : refType = __Elt; break;
+            case 2 : refType = __2Elt; break;
+            case 3 : refType = __3Elt; break;
+            case 4 : refType = __4Elt; break;
+            case 5 : refType = __5Elt; break;
+            default: throw new Error
+                (elt.getQualifiedName() + " : at least one and at most 5 parameters must be declared");
+        }
+
+        final DeclaredType refDecl =
+            Types.getDeclaredType(refType, Stream
+                .concat(Stream.of(Mus.getAsMirror(µ)), Stream.of(eltParams))
+                .toArray(TypeMirror[]::new));
+
+        return Types.isSameType(refDecl, decl)
+            ? Reports.Correct()
+            : Reports.WrongImpl(elt, refDecl);
     }
 
     private Unit reportErrors(Report report) {
@@ -165,8 +194,8 @@ public final class HktProcessor extends AbstractProcessor {
                 Messager.printMessage(Diagnostic.Kind.ERROR, noµError(tel), tel);
                 return Unit.unit;
             })
-            .WrongImpl(tel -> {
-                Messager.printMessage(Diagnostic.Kind.ERROR, wrongImplError(tel), tel);
+            .WrongImpl((tel, refDecl) -> {
+                Messager.printMessage(Diagnostic.Kind.ERROR, wrongImplError(tel, refDecl), tel);
                 return Unit.unit;
             })
             .apply(report);
@@ -180,12 +209,16 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
     private static String noµError(TypeElement tel) {
-        return "\n" + tel.getQualifiedName() + " must declare an inner public static final class called 'µ'";
+        return String.format("%n%s must declare an inner public static final class called 'µ'", tel.getQualifiedName());
     }
 
-    private static String wrongImplError(TypeElement tel) {
-        return "\nThe first parameter of a " + __.class.getCanonicalName() + " implementation declaration must be either " +
-            tel.getQualifiedName() + ".µ or " + __.class.getCanonicalName();
+    private static String wrongImplError(TypeElement tel, DeclaredType refDecl) {
+        return String
+            .format("%n%s takes %d type parameter(s). To be declared as a type constructor,%n"
+                + "it can only implements :%n%n%s%n%n(plus any interfaces outside org.derive4j.hkt)"
+                , tel.getQualifiedName()
+                , tel.getTypeParameters().size()
+                , refDecl);
     }
 
     private static final class DeclaredTypeVisitor extends SimpleTypeVisitor8<Optional<DeclaredType>, Unit> {
@@ -212,6 +245,10 @@ public final class HktProcessor extends AbstractProcessor {
         return opt.map(f).orElseGet(r);
     }
 
+    private static <A, B, C> Function<A, Function<B, C>> curry(BiFunction<A, B, C> f) {
+        return a -> b -> f.apply(a, b);
+    }
+
     private enum Unit { unit }
 
     @Data
@@ -236,7 +273,7 @@ public final class HktProcessor extends AbstractProcessor {
         interface Cases<R> {
             R Correct();
             R Noµ(TypeElement elt);
-            R WrongImpl(TypeElement elt);
+            R WrongImpl(TypeElement elt, DeclaredType refDecl);
         }
         abstract <R> R match(Cases<R> cases);
     }

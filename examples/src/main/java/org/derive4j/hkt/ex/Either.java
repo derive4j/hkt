@@ -1,8 +1,8 @@
 package org.derive4j.hkt.ex;
 
-import org.derive4j.hkt.__;
+import org.derive4j.hkt.__2;
 
-public class Either<A, B> implements __<__<Either.µ, A>, B> {
+public abstract class Either<A, B> implements __2<Either.µ, A, B> {
 
     public static final class µ{}
 }

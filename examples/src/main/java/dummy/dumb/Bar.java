@@ -1,12 +1,18 @@
 package dummy.dumb;
 
+import org.derive4j.hkt.__;
+
 public class Bar {
 
-    class InnerClass {}
+    static class InnerClass<T> implements __<Bar, Void> {
+        public static final class µ {}
+    }
 
     static class StaticInnerClass {
         StaticInnerClass() {
-            class InConstructorClass {}
+//            class InConstructorClass implements __<Bar, Void> {
+//                public static final class µ {}
+//            }
         }
 
         void method() {
