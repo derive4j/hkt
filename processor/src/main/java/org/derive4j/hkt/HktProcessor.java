@@ -74,24 +74,23 @@ public final class HktProcessor extends AbstractProcessor {
             final Stream<TypeElement> allTypes = ElementFilter
                 .typesIn(roundEnv.getRootElements())
                 .parallelStream()
-                .flatMap(tel -> Stream
-                    .concat(Stream.of(tel), getAllInnerTypes(tel)));
+                .flatMap(tel -> Stream.concat(Stream.of(tel), allInnerTypes(tel)));
 
             final Stream<TypeElement> targetTypes = allTypes.filter(this::implementsHkt);
 
-            final Stream<Hkt> reprs = targetTypes.map(tel ->
+            final Stream<Hkt> hkTypes = targetTypes.map(tel ->
                 validTypeParams(tel)
-                    ? cata(getInnerµ(tel)
-                    , µ -> validateRepr(tel, getHktDecl(tel), µ)
+                    ? cata(innerµ(tel)
+                    , µ -> validHkt(tel, hktDecl(tel), µ)
                     , () -> Hkts.Noµ(tel))
                     : Hkts.BadParams(tel));
 
-            reprs.forEach(this::reportErrors);
+            hkTypes.forEach(this::reportErrors);
         }
         return true;
     }
 
-    private Stream<TypeElement> getAllInnerTypes(TypeElement tel) {
+    private Stream<TypeElement> allInnerTypes(TypeElement tel) {
         final List<? extends Element> enclosedElements = tel.getEnclosedElements();
 
         final Stream<TypeElement> memberTypes =
@@ -119,7 +118,7 @@ public final class HktProcessor extends AbstractProcessor {
         return allTypes.isEmpty()
             ? Stream.empty()
             : Stream.concat
-            (allTypes.stream(), allTypes.parallelStream().flatMap(this::getAllInnerTypes));
+            (allTypes.stream(), allTypes.parallelStream().flatMap(this::allInnerTypes));
     }
 
     private static boolean validTypeParams(TypeElement tel) {
@@ -127,7 +126,7 @@ public final class HktProcessor extends AbstractProcessor {
         return size > 0 && size < 6;
     }
 
-    private Optional<Mu> getInnerµ(TypeElement elt) {
+    private Optional<Mu> innerµ(TypeElement elt) {
         return ElementFilter
             .typesIn(elt.getEnclosedElements())
             .stream()
@@ -141,9 +140,9 @@ public final class HktProcessor extends AbstractProcessor {
         return Types.isSubtype(tel.asType(), Types.erasure(__Elt.asType()));
     }
 
-    private DeclaredType getHktDecl(TypeElement tel) {
-        return
-        tel.getInterfaces()
+    private DeclaredType hktDecl(TypeElement tel) {
+        return tel
+            .getInterfaces()
             .stream()
             .filter(this::isHkt)
             .findAny()
@@ -162,7 +161,7 @@ public final class HktProcessor extends AbstractProcessor {
             || isSameType.apply(Types.erasure(__5Elt.asType()));
     }
 
-    private Hkt validateRepr(TypeElement elt, DeclaredType decl, Mu µ) {
+    private Hkt validHkt(TypeElement elt, DeclaredType decl, Mu µ) {
         final TypeMirror[] eltParams =
             elt.getTypeParameters()
                 .stream()
