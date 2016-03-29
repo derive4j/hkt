@@ -121,11 +121,6 @@ public final class HktProcessor extends AbstractProcessor {
             (allTypes.stream(), allTypes.parallelStream().flatMap(this::allInnerTypes));
     }
 
-    private static boolean validTypeParams(TypeElement tel) {
-        final int size = tel.getTypeParameters().size();
-        return size > 0 && size < 6;
-    }
-
     private Optional<Mu> innerµ(TypeElement elt) {
         return ElementFilter
             .typesIn(elt.getEnclosedElements())
@@ -205,6 +200,11 @@ public final class HktProcessor extends AbstractProcessor {
             })
             .otherwise(() -> Unit.unit)
             .apply(hkt);
+    }
+
+    private static boolean validTypeParams(TypeElement tel) {
+        final int size = tel.getTypeParameters().size();
+        return size > 0 && size < 6;
     }
 
     private static boolean isµ(TypeElement elt) {
