@@ -79,12 +79,12 @@ public final class HktProcessor extends AbstractProcessor {
 
             final Stream<TypeElement> targetTypes = allTypes.filter(this::implementsHkt);
 
-            final Stream<Repr> reprs = targetTypes.map(tel ->
+            final Stream<Hkt> reprs = targetTypes.map(tel ->
                 validTypeParams(tel)
                     ? cata(getInnerµ(tel)
                     , µ -> validateRepr(tel, getHktDecl(tel).get(), µ) // Optionnal.get safe since we previously discarded types that don't implement Hkt (__ or __2 or etc...)
-                    , () -> Reprs.Noµ(tel))
-                    : Reprs.BadParams(tel));
+                    , () -> Hkts.Noµ(tel))
+                    : Hkts.BadParams(tel));
 
             reprs.forEach(this::reportErrors);
         }
@@ -163,7 +163,7 @@ public final class HktProcessor extends AbstractProcessor {
             || isSameType.apply(Types.erasure(__5Elt.asType()));
     }
 
-    private Repr validateRepr(TypeElement elt, DeclaredType decl, Mu µ) {
+    private Hkt validateRepr(TypeElement elt, DeclaredType decl, Mu µ) {
         final TypeMirror[] eltParams =
             elt.getTypeParameters()
                 .stream()
@@ -187,12 +187,12 @@ public final class HktProcessor extends AbstractProcessor {
                 .toArray(TypeMirror[]::new));
 
         return Types.isSameType(refDecl, decl)
-            ? Reprs.Correct()
-            : Reprs.WrongImpl(elt, refDecl);
+            ? Hkts.Correct()
+            : Hkts.WrongImpl(elt, refDecl);
     }
 
-    private Unit reportErrors(Repr repr) {
-        return Reprs.cases()
+    private Unit reportErrors(Hkt hkt) {
+        return Hkts.cases()
             .BadParams(tel -> {
                 Messager.printMessage(Diagnostic.Kind.ERROR, badParamsError(tel), tel);
                 return Unit.unit;
@@ -206,7 +206,7 @@ public final class HktProcessor extends AbstractProcessor {
                 return Unit.unit;
             })
             .otherwise(() -> Unit.unit)
-            .apply(repr);
+            .apply(hkt);
     }
 
     private static boolean isµ(TypeElement elt) {
@@ -267,7 +267,7 @@ public final class HktProcessor extends AbstractProcessor {
     private enum Unit { unit }
 
     @Data
-    static abstract class Repr {
+    static abstract class Hkt {
         interface Cases<R> {
             R BadParams(TypeElement elt);
             R Noµ(TypeElement elt);
