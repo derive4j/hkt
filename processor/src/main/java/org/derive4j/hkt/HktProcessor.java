@@ -82,7 +82,7 @@ public final class HktProcessor extends AbstractProcessor {
             final Stream<Hkt> reprs = targetTypes.map(tel ->
                 validTypeParams(tel)
                     ? cata(getInnerµ(tel)
-                    , µ -> validateRepr(tel, getHktDecl(tel).get(), µ) // Optionnal.get safe since we previously discarded types that don't implement Hkt (__ or __2 or etc...)
+                    , µ -> validateRepr(tel, getHktDecl(tel), µ)
                     , () -> Hkts.Noµ(tel))
                     : Hkts.BadParams(tel));
 
@@ -133,23 +133,22 @@ public final class HktProcessor extends AbstractProcessor {
             .stream()
             .filter(HktProcessor::isµ)
             .findAny()
-            .flatMap(tel -> elt
-                .asType()
-                .accept(new DeclaredTypeVisitor(), Unit.unit)
-                .map(decl -> Mus.of(tel, Types.asMemberOf(decl, tel))));
+            .map(tel -> Mus.of(tel, Types.asMemberOf
+                (elt.asType().accept(new DeclaredTypeVisitor(), Unit.unit), tel)));
     }
 
     private boolean implementsHkt(TypeElement tel) {
         return Types.isSubtype(tel.asType(), Types.erasure(__Elt.asType()));
     }
 
-    private Optional<DeclaredType> getHktDecl(TypeElement tel) {
+    private DeclaredType getHktDecl(TypeElement tel) {
         return
         tel.getInterfaces()
             .stream()
             .filter(this::isHkt)
             .findAny()
-            .flatMap(tm -> tm.accept(new DeclaredTypeVisitor(), Unit.unit));
+            .get()// Optionnal.get safe since we previously discarded types that don't implement Hkt (__ or __2 or etc...)
+            .accept(new DeclaredTypeVisitor(), Unit.unit);
     }
 
     private boolean isHkt(TypeMirror tm) {
@@ -236,15 +235,19 @@ public final class HktProcessor extends AbstractProcessor {
                 , refDecl);
     }
 
-    private static final class DeclaredTypeVisitor extends SimpleTypeVisitor8<Optional<DeclaredType>, Unit> {
+    private static final class DeclaredTypeVisitor extends SimpleTypeVisitor8<DeclaredType, Unit> {
         DeclaredTypeVisitor() {}
         @Override
-        public Optional<DeclaredType> visitDeclared(DeclaredType t, Unit __) {
-            return Optional.of(t);
-        }
+        public DeclaredType visitDeclared(DeclaredType t, Unit __) { return t; }
         @Override
-        protected Optional<DeclaredType> defaultAction(TypeMirror e, Unit __) {
-            return Optional.empty();
+        protected DeclaredType defaultAction(TypeMirror e, Unit __) {
+            throw new NotADeclaredType(e);
+        }
+
+        private static final class NotADeclaredType extends Error {
+            private NotADeclaredType(TypeMirror tm) {
+                super(tm.toString());
+            }
         }
     }
 
