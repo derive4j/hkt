@@ -86,7 +86,7 @@ public final class HktProcessor extends AbstractProcessor {
 
             hkTypes.forEach(this::reportErrors);
         }
-        return true;
+        return false;
     }
 
     private Stream<TypeElement> allInnerTypes(TypeElement tel) {
