@@ -5,7 +5,6 @@ targetCompatibility = 1.8
 
 dependencies {
     compile project(":types")
-    compile javaPoet
     compile files(Jvm.current().toolsJar)
 
     compileOnly "org.derive4j:derive4j-annotation:${derive4jVersion}"

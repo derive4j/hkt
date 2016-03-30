@@ -2,7 +2,6 @@ package org.derive4j.hkt;
 
 import com.google.auto.service.AutoService;
 import com.sun.source.tree.ClassTree;
-import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.util.SimpleTreeVisitor;
 import com.sun.source.util.TreePath;
@@ -99,18 +98,23 @@ public final class HktProcessor extends AbstractProcessor {
         final Stream<TypeElement> localTypes = Stream
             .concat(ElementFilter.constructorsIn(enclosedElements).stream()
                 , ElementFilter.methodsIn(enclosedElements).stream())
-            .flatMap(exEl -> {
-                final MethodTree methodTree = JTrees.getTree(exEl);
-                final TreePath methodPath = JTrees.getPath(exEl);
-                final List<TypeElement> typeElts = ElementFilter.typesIn(methodTree
-                    .getBody()
-                    .getStatements()
-                    .stream()
-                    .filter(st -> st.accept(new ClassTreeVisitor(), Unit.unit))
-                    .map(st -> JTrees.getElement(TreePath.getPath(methodPath, st)))
-                    .collect(Collectors.toList()));
-                return typeElts.stream();
-            });
+            .flatMap(exEl -> unNull(JTrees.getTree(exEl)).flatMap
+                (methodTree -> unNull(JTrees.getPath(exEl)).flatMap
+                    (methodPath -> unNull(methodTree.getBody()).flatMap
+                        (methodBody -> unNull(methodBody.getStatements()).map
+                            (statements -> {
+                                final List<TypeElement> typeElts = ElementFilter.typesIn(statements
+                                    .stream()
+                                    .filter(st -> st.accept(new ClassTreeVisitor(), Unit.unit))
+                                    .map(st ->
+                                        unNull(TreePath.getPath(methodPath, st)).flatMap
+                                            (path -> unNull(JTrees.getElement(path))))
+                                    .filter(Optional::isPresent)
+                                    .map(Optional::get)
+                                    .collect(Collectors.toList()));
+                                return typeElts.stream();
+                            }))))
+                .orElseGet(Stream::empty));
 
         final List<TypeElement> allTypes =
             Stream.concat(memberTypes, localTypes).collect(Collectors.toList());
@@ -210,14 +214,14 @@ public final class HktProcessor extends AbstractProcessor {
     private static boolean isµ(TypeElement elt) {
         return
             elt.getSimpleName().contentEquals(µTypeName)
-            && elt.getModifiers().containsAll(asList
+                && elt.getModifiers().containsAll(asList
                 (Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL));
     }
 
     private static String badParamsError(TypeElement tel) {
         return String
             .format("%n%s should declare between 1 and 5 (inclusive) type parameters%n"
-                + "to be able to implement one of org.derive4j.hkt interfaces"
+                    + "to be able to implement one of org.derive4j.hkt interfaces"
                 , tel.getQualifiedName());
     }
 
@@ -228,7 +232,7 @@ public final class HktProcessor extends AbstractProcessor {
     private static String wrongImplError(TypeElement tel, DeclaredType refDecl) {
         return String
             .format("%n%s takes %d type parameter(s). To be declared as a type constructor,%n"
-                + "it can only implements :%n%n%s%n%n(plus any interfaces outside org.derive4j.hkt)"
+                    + "it can only implements :%n%n%s%n%n(plus any interfaces outside org.derive4j.hkt)"
                 , tel.getQualifiedName()
                 , tel.getTypeParameters().size()
                 , refDecl);
@@ -257,6 +261,8 @@ public final class HktProcessor extends AbstractProcessor {
         @Override
         protected Boolean defaultAction(Tree node, Unit __) { return false; }
     }
+
+    private static <T> Optional<T> unNull(T t) { return Optional.ofNullable(t); }
 
     private static <T, R> R cata(Optional<T> opt, Function<T, R> f, Supplier<R> r) {
         return opt.map(f).orElseGet(r);
