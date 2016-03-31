@@ -95,10 +95,10 @@ public final class HktProcessor extends AbstractProcessor {
         final Stream<TypeElement> memberTypes =
             ElementFilter.typesIn(enclosedElements).stream();
 
-        final Stream<TypeElement> localTypes = Stream
-            .concat(ElementFilter.constructorsIn(enclosedElements).stream()
-                , ElementFilter.methodsIn(enclosedElements).stream())
-            .flatMap(exEl -> unNull(JTrees.getTree(exEl)).flatMap
+        final Stream<TypeElement> localTypes = Stream.concat
+            (ElementFilter.constructorsIn(enclosedElements).stream()
+                , ElementFilter.methodsIn(enclosedElements).stream()).flatMap
+            (exEl -> unNull(JTrees.getTree(exEl)).flatMap
                 (methodTree -> unNull(JTrees.getPath(exEl)).flatMap
                     (methodPath -> unNull(methodTree.getBody()).flatMap
                         (methodBody -> unNull(methodBody.getStatements()).map
@@ -220,18 +220,18 @@ public final class HktProcessor extends AbstractProcessor {
 
     private static String badParamsError(TypeElement tel) {
         return String
-            .format("%n%s should declare between 1 and 5 (inclusive) type parameters%n"
+            .format("org.derive4j.htk :%n%s should declare between 1 and 5 (inclusive) type parameters%n"
                     + "to be able to implement one of org.derive4j.hkt interfaces"
                 , tel.getQualifiedName());
     }
 
     private static String noµError(TypeElement tel) {
-        return String.format("%n%s must declare an inner public static final class called 'µ'", tel.getQualifiedName());
+        return String.format("org.derive4j.htk :%n%s must declare an inner public static final class called 'µ'", tel.getQualifiedName());
     }
 
     private static String wrongImplError(TypeElement tel, DeclaredType refDecl) {
         return String
-            .format("%n%s takes %d type parameter(s). To be declared as a type constructor,%n"
+            .format("org.derive4j.htk : %n%s takes %d type parameter(s). To be declared as a type constructor,%n"
                     + "it can only implements :%n%n%s%n%n(plus any interfaces outside org.derive4j.hkt)"
                 , tel.getQualifiedName()
                 , tel.getTypeParameters().size()
