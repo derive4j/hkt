@@ -1,25 +1,155 @@
-plugins {
-    id "net.ltgt.apt" version "0.5"
-}
 
-allprojects {
-
-    apply plugin: "maven"
-
-    repositories { mavenCentral() }
-
-    ext {
-        derive4jVersion = "0.7"
-        autoService = "com.google.auto.service:auto-service:1.0-rc2"
+buildscript {
+  repositories {
+    maven {
+      url "https://plugins.gradle.org/m2/"
     }
-
-    group "org.derive4j.hkt"
-    version "1.0-SNAPSHOT"
+  }
+  dependencies {
+    //Check for the latest version here: http://plugins.gradle.org/plugin/com.jfrog.artifactory
+    classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:4.2.0'
+  }
 }
 
-subprojects {
+plugins {
+  id 'net.ltgt.apt' version '0.6'
+}
 
-    apply plugin: "java"
-    apply plugin: "net.ltgt.apt"
+apply plugin: 'idea'
+apply plugin: 'java'
+apply plugin: 'net.ltgt.apt'
+apply plugin: 'maven'
+apply plugin: 'com.jfrog.artifactory'
 
+defaultTasks 'build'
+
+sourceCompatibility = '1.8'
+
+repositories {
+  mavenCentral()
+  jcenter()
+  mavenLocal()
+}
+
+ext {
+  isSnapshot = true
+  hktBaseVersion = '0.1'
+  hktVersion = hktBaseVersion + (isSnapshot ? '-SNAPSHOT' : '')
+
+  derive4jVersion = '0.7'
+  autoService = 'com.google.auto.service:auto-service:1.0-rc2'
+}
+
+
+group 'org.derive4j.hkt'
+version hktVersion
+
+import org.gradle.internal.jvm.Jvm
+
+dependencies {
+
+  compile files(Jvm.current().toolsJar)
+
+  compileOnly "org.derive4j:derive4j-annotation:${derive4jVersion}"
+  compileOnly autoService
+
+  apt "org.derive4j:derive4j:${derive4jVersion}"
+  apt autoService
+
+  testCompile 'junit:junit:4.12'
+  testCompile 'com.google.testing.compile:compile-testing:0.8'
+  testApt rootProject
+}
+
+test {
+  testLogging.showStandardStreams = true
+}
+
+
+tasks.withType(JavaCompile) {
+  options.compilerArgs << '-Xlint:all'
+}
+
+task javadocJar(type: Jar, dependsOn: "javadoc") {
+  classifier = 'javadoc'
+  from "build/docs/javadoc"
+}
+
+task sourcesJar(type: Jar) {
+  from sourceSets.main.allSource
+  classifier = 'sources'
+}
+
+artifacts {
+  archives jar
+  archives javadocJar
+  archives sourcesJar
+}
+
+install {
+  repositories.mavenInstaller {
+    pom {
+      groupId = project.group
+      project {
+        name "HKT"
+        packaging 'jar'
+        description "Interfaces and type-checker for higher kinded types support in Java"
+        url 'https://github.com/derive4j/hkt"'
+        organization {
+          name 'Derive4J HKT contributors'
+        }
+        scm {
+          url "git://github.com/derive4j/hkt.git"
+        }
+        licenses {
+          license {
+            name 'BSD-3'
+            url 'https://github.com/derive4j/hkt/blob/master/LICENSE'
+            distribution 'repo'
+          }
+        }
+        developers {
+          developer {
+            name 'Grégoire Neuvill'
+          }
+          developer {
+            name 'Jean-Baptiste Giraudeau'
+            email 'jb@giraudeau.info'
+          }
+        }
+      }
+    }
+  }
+}
+
+artifactoryPublish {
+  dependsOn sourcesJar, javadocJar
+}
+
+artifactory {
+  contextUrl = 'http://oss.jfrog.org/artifactory'   //The base Artifactory URL if not overridden by the publisher/resolver
+  publish {
+    repository {
+      // The Artifactory repository key to publish to :
+      if (isSnapshot) {
+        repoKey = 'oss-snapshot-local'
+      } else {
+        repoKey = 'oss-release-local'
+      }
+      username = jfrogUsername         //The publisher user name
+      password = jfrogPassword      //The publisher password
+    }
+    defaults {
+      publishConfigs('archives')
+    }
+  }
+  resolve {
+    repository {
+      repoKey = 'libs-releases'  //The Artifactory (preferably virtual) repository key to resolve from
+    }
+  }
+}
+
+task env << {
+  println System.getenv()
 }

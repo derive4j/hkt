@@ -1,4 +1,3 @@
 rootProject.name = "hkt"
-include "processor", "types", "examples"
 
 
