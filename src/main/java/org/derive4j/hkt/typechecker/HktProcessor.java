@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2016, Grégoire Neuvill and Derive4J HKT contributors.
+    Copyright (c) 2016, Grégoire Neuville and Derive4J HKT contributors.
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
