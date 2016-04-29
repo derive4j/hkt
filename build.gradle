@@ -110,7 +110,7 @@ install {
         }
         developers {
           developer {
-            name 'Grégoire Neuvill'
+            name 'Grégoire Neuville'
           }
           developer {
             name 'Jean-Baptiste Giraudeau'
