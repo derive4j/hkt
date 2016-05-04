@@ -36,6 +36,7 @@ import com.sun.source.util.SimpleTreeVisitor;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.Trees;
 import org.derive4j.Data;
+import org.derive4j.hkt.*;
 
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
@@ -57,13 +58,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.derive4j.hkt.typechecker.Hkts;
-import org.derive4j.hkt.typechecker.Mus;
-import org.derive4j.hkt.__;
-import org.derive4j.hkt.__2;
-import org.derive4j.hkt.__3;
-import org.derive4j.hkt.__4;
-import org.derive4j.hkt.__5;
 
 import static java.util.Arrays.asList;
 
@@ -283,6 +277,7 @@ public final class HktProcessor extends AbstractProcessor {
             throw new NotADeclaredType(e);
         }
 
+        @SuppressWarnings("serial")
         private static final class NotADeclaredType extends Error {
             private NotADeclaredType(TypeMirror tm) {
                 super(tm.toString());
