@@ -41,7 +41,6 @@ import org.derive4j.hkt.*;
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
@@ -60,6 +59,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
+import static javax.lang.model.element.Modifier.*;
+import static org.derive4j.hkt.typechecker.HktProcessor.Unit.unit;
 
 @AutoService(Processor.class)
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
@@ -107,14 +108,14 @@ public final class HktProcessor extends AbstractProcessor {
 
             final Stream<TypeElement> targetTypes = allTypes.filter(this::implementsHkt);
 
-            final Stream<Hkt> hkTypes = targetTypes.map(tel ->
+            final Stream<Hkt> hkts = targetTypes.map(tel ->
                 validTypeParams(tel)
                     ? cata(innerµ(tel)
                     , µ -> validHkt(tel, hktDecl(tel), µ)
                     , () -> Hkts.Noµ(tel))
                     : Hkts.BadParams(tel));
 
-            hkTypes.forEach(this::reportErrors);
+            hkts.forEach(this::reportErrors);
         }
         return false;
     }
@@ -135,7 +136,7 @@ public final class HktProcessor extends AbstractProcessor {
                             (statements -> {
                                 final List<TypeElement> typeElts = ElementFilter.typesIn(statements
                                     .stream()
-                                    .filter(st -> st.accept(new ClassTreeVisitor(), Unit.unit))
+                                    .filter(st -> st.accept(new ClassTreeVisitor(), unit))
                                     .map(st ->
                                         unNull(TreePath.getPath(methodPath, st)).flatMap
                                             (path -> unNull(JTrees.getElement(path))))
@@ -162,21 +163,22 @@ public final class HktProcessor extends AbstractProcessor {
             .filter(HktProcessor::isµ)
             .findAny()
             .map(tel -> Mus.of(tel, Types.asMemberOf
-                (elt.asType().accept(new DeclaredTypeVisitor(), Unit.unit), tel)));
+                (elt.asType().accept(new DeclaredTypeVisitor(), unit), tel)));
     }
 
     private boolean implementsHkt(TypeElement tel) {
-        return Types.isSubtype(tel.asType(), Types.erasure(__Elt.asType()));
+        return tel.getInterfaces().stream().anyMatch(this::isHkt);
     }
 
     private DeclaredType hktDecl(TypeElement tel) {
+        //noinspection OptionalGetWithoutIsPresent
         return tel
             .getInterfaces()
             .stream()
             .filter(this::isHkt)
             .findAny()
             .get()// Optionnal.get safe since we previously discarded types that don't implement Hkt (__ or __2 or etc...)
-            .accept(new DeclaredTypeVisitor(), Unit.unit);
+            .accept(new DeclaredTypeVisitor(), unit);
     }
 
     private boolean isHkt(TypeMirror tm) {
@@ -222,17 +224,17 @@ public final class HktProcessor extends AbstractProcessor {
         return Hkts.cases()
             .BadParams(tel -> {
                 Messager.printMessage(Diagnostic.Kind.ERROR, badParamsError(tel), tel);
-                return Unit.unit;
+                return unit;
             })
             .Noµ(tel -> {
                 Messager.printMessage(Diagnostic.Kind.ERROR, noµError(tel), tel);
-                return Unit.unit;
+                return unit;
             })
             .WrongImpl((tel, refDecl) -> {
                 Messager.printMessage(Diagnostic.Kind.ERROR, wrongImplError(tel, refDecl), tel);
-                return Unit.unit;
+                return unit;
             })
-            .otherwise(() -> Unit.unit)
+            .otherwise(() -> unit)
             .apply(hkt);
     }
 
@@ -242,10 +244,8 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
     private static boolean isµ(TypeElement elt) {
-        return
-            elt.getSimpleName().contentEquals(µTypeName)
-                && elt.getModifiers().containsAll(asList
-                (Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL));
+        return elt.getSimpleName().contentEquals(µTypeName)
+            && elt.getModifiers().containsAll(asList(PUBLIC, STATIC, FINAL));
     }
 
     private static String badParamsError(TypeElement tel) {
@@ -303,7 +303,7 @@ public final class HktProcessor extends AbstractProcessor {
         return a -> b -> f.apply(a, b);
     }
 
-    private enum Unit { unit }
+    enum Unit { unit }
 
     @Data
     static abstract class Hkt {
