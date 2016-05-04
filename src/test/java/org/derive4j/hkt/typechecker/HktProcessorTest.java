@@ -16,6 +16,6 @@ public class HktProcessorTest {
         .that(JavaFileObjects.forResource("dummy/dumb/Bar.java"))
         .processedWith(new HktProcessor())
         .failsToCompile()
-        .withErrorCount(4);
+        .withErrorCount(6);
   }
 }

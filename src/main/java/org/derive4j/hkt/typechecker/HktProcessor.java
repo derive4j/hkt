@@ -35,37 +35,59 @@ import com.sun.source.tree.Tree;
 import com.sun.source.util.SimpleTreeVisitor;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.Trees;
-import org.derive4j.Data;
-import org.derive4j.hkt.*;
-
-import javax.annotation.processing.*;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.ElementFilter;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.SimpleTypeVisitor8;
-import javax.lang.model.util.Types;
-import javax.tools.Diagnostic;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.Messager;
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.annotation.processing.Processor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ElementVisitor;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVisitor;
+import javax.lang.model.util.ElementFilter;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.SimpleElementVisitor8;
+import javax.lang.model.util.SimpleTypeVisitor8;
+import javax.lang.model.util.Types;
+import javax.tools.Diagnostic;
+import org.derive4j.Data;
+import org.derive4j.hkt.__;
 
-import static java.util.Arrays.asList;
-import static javax.lang.model.element.Modifier.*;
-import static org.derive4j.hkt.typechecker.HktProcessor.Unit.unit;
+import static java.lang.Math.min;
+import static java.lang.String.format;
+import static org.derive4j.hkt.typechecker.HkTypeErrors.HKTInterfaceDeclrationIsRawType;
+import static org.derive4j.hkt.typechecker.HkTypeErrors.HKTypesNeedAtLeastOneTypeParameter;
+import static org.derive4j.hkt.typechecker.HkTypeErrors.NestedTCWitnessMustBeSimpleType;
+import static org.derive4j.hkt.typechecker.HkTypeErrors.NestedTCWitnessMustBeStaticFinal;
+import static org.derive4j.hkt.typechecker.HkTypeErrors.NotMatchingTypeParams;
+import static org.derive4j.hkt.typechecker.HkTypeErrors.TCWitnessMustBeNestedClassOrClass;
+import static org.derive4j.hkt.typechecker.HkTypeErrors.WrongHKTInterface;
 
 @AutoService(Processor.class)
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 @SupportedAnnotationTypes("*")
 public final class HktProcessor extends AbstractProcessor {
+
     private static final String  µTypeName = "µ";
 
     private Filer Filer;
@@ -75,10 +97,6 @@ public final class HktProcessor extends AbstractProcessor {
     private Trees JTrees;
 
     private TypeElement __Elt;
-    private TypeElement __2Elt;
-    private TypeElement __3Elt;
-    private TypeElement __4Elt;
-    private TypeElement __5Elt;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -91,10 +109,6 @@ public final class HktProcessor extends AbstractProcessor {
         JTrees = Trees.instance(processingEnv);
 
         __Elt = Elts.getTypeElement(__.class.getCanonicalName());
-        __2Elt = Elts.getTypeElement(__2.class.getCanonicalName());
-        __3Elt = Elts.getTypeElement(__3.class.getCanonicalName());
-        __4Elt = Elts.getTypeElement(__4.class.getCanonicalName());
-        __5Elt = Elts.getTypeElement(__5.class.getCanonicalName());
     }
 
     @Override
@@ -106,16 +120,19 @@ public final class HktProcessor extends AbstractProcessor {
                 .parallelStream()
                 .flatMap(tel -> Stream.concat(Stream.of(tel), allInnerTypes(tel)));
 
-            final Stream<TypeElement> targetTypes = allTypes.filter(this::implementsHkt);
+            final Stream<HktToValidate> targetTypes = allTypes
+                .flatMap(this::asHktToValidate);
 
-            final Stream<Hkt> hkts = targetTypes.map(tel ->
-                validTypeParams(tel)
-                    ? cata(innerµ(tel)
-                    , µ -> validHkt(tel, hktDecl(tel), µ)
-                    , () -> Hkts.Noµ(tel))
-                    : Hkts.BadParams(tel));
+            Function<HkTypeError, Consumer<TypeElement>> reportErrors = reportErrors();
 
-            hkts.forEach(this::reportErrors);
+            Stream<Runnable> errorReportIo = targetTypes
+                .flatMap(hktToValidate -> hktToValidate.match((typeConstructor, hktInterface) ->
+                    checkHktType(typeConstructor, hktInterface)
+                        .map(reportErrors)
+                        .map(c -> () -> c.accept(typeConstructor))
+                ));
+
+            errorReportIo.forEach(Runnable::run);
         }
         return false;
     }
@@ -136,7 +153,7 @@ public final class HktProcessor extends AbstractProcessor {
                             (statements -> {
                                 final List<TypeElement> typeElts = ElementFilter.typesIn(statements
                                     .stream()
-                                    .filter(st -> st.accept(new ClassTreeVisitor(), unit))
+                                    .filter(st -> st.accept(new ClassTreeVisitor(), Unit.unit))
                                     .map(st ->
                                         unNull(TreePath.getPath(methodPath, st)).flatMap
                                             (path -> unNull(JTrees.getElement(path))))
@@ -151,138 +168,229 @@ public final class HktProcessor extends AbstractProcessor {
             Stream.concat(memberTypes, localTypes).collect(Collectors.toList());
 
         return allTypes.isEmpty()
-            ? Stream.empty()
-            : Stream.concat
-            (allTypes.stream(), allTypes.parallelStream().flatMap(this::allInnerTypes));
+               ? Stream.empty()
+               : Stream.concat
+                   (allTypes.stream(), allTypes.parallelStream().flatMap(this::allInnerTypes));
     }
 
-    private Optional<Mu> innerµ(TypeElement elt) {
-        return ElementFilter
-            .typesIn(elt.getEnclosedElements())
-            .stream()
-            .filter(HktProcessor::isµ)
-            .findAny()
-            .map(tel -> Mus.of(tel, Types.asMemberOf
-                (elt.asType().accept(new DeclaredTypeVisitor(), unit), tel)));
+    private Stream<HktToValidate> asHktToValidate(TypeElement tEl) {
+        return tEl.getInterfaces().stream()
+            .map(this::asHktInterface)
+            .flatMap(HktProcessor::optionalAsStream)
+            .limit(1)
+            .map(hktInterface -> HktToValidates.of(tEl, hktInterface));
     }
 
-    private boolean implementsHkt(TypeElement tel) {
-        return tel.getInterfaces().stream().anyMatch(this::isHkt);
-    }
-
-    private DeclaredType hktDecl(TypeElement tel) {
-        //noinspection OptionalGetWithoutIsPresent
-        return tel
-            .getInterfaces()
-            .stream()
-            .filter(this::isHkt)
-            .findAny()
-            .get()// Optionnal.get safe since we previously discarded types that don't implement Hkt (__ or __2 or etc...)
-            .accept(new DeclaredTypeVisitor(), unit);
-    }
-
-    private boolean isHkt(TypeMirror tm) {
-        final Function<TypeMirror, Boolean> isSameType =
-            curry(Types::isSameType).apply(Types.erasure(tm));
-
-        return isSameType.apply(Types.erasure(__Elt.asType()))
-            || isSameType.apply(Types.erasure(__2Elt.asType()))
-            || isSameType.apply(Types.erasure(__3Elt.asType()))
-            || isSameType.apply(Types.erasure(__4Elt.asType()))
-            || isSameType.apply(Types.erasure(__5Elt.asType()));
-    }
-
-    private Hkt validHkt(TypeElement elt, DeclaredType decl, Mu µ) {
-        final TypeMirror[] eltParams =
-            elt.getTypeParameters()
-                .stream()
-                .map(Element::asType)
-                .toArray(TypeMirror[]::new);
-
-        final TypeElement refType;
-        switch (eltParams.length) {
-            case 1 : refType = __Elt; break;
-            case 2 : refType = __2Elt; break;
-            case 3 : refType = __3Elt; break;
-            case 4 : refType = __4Elt; break;
-            case 5 : refType = __5Elt; break;
-            default: throw new Error
-                (elt.getQualifiedName() + " : at least one and at most 5 parameters must be declared");
+    @Data
+    static abstract class HkTypeError {
+        interface Cases<R> {
+            R HKTInterfaceDeclrationIsRawType();
+            R HKTypesNeedAtLeastOneTypeParameter();
+            R WrongHKTInterface();
+            R NotMatchingTypeParams(List<TypeParameterElement> missingOrOutOfOrderTypeArguments);
+            R TCWitnessMustBeNestedClassOrClass();
+            R NestedTCWitnessMustBeSimpleType(TypeElement tcWitnessElement);
+            R NestedTCWitnessMustBeStaticFinal(TypeElement tcWitnessElement);
         }
-
-        final DeclaredType refDecl =
-            Types.getDeclaredType(refType, Stream
-                .concat(Stream.of(Mus.getAsMirror(µ)), Stream.of(eltParams))
-                .toArray(TypeMirror[]::new));
-
-        return Types.isSameType(refDecl, decl)
-            ? Hkts.Correct()
-            : Hkts.WrongImpl(elt, refDecl);
+        abstract <R> R match(Cases<R> cases);
     }
 
-    private Unit reportErrors(Hkt hkt) {
-        return Hkts.cases()
-            .BadParams(tel -> {
-                Messager.printMessage(Diagnostic.Kind.ERROR, badParamsError(tel), tel);
-                return unit;
-            })
-            .Noµ(tel -> {
-                Messager.printMessage(Diagnostic.Kind.ERROR, noµError(tel), tel);
-                return unit;
-            })
-            .WrongImpl((tel, refDecl) -> {
-                Messager.printMessage(Diagnostic.Kind.ERROR, wrongImplError(tel, refDecl), tel);
-                return unit;
-            })
-            .otherwise(() -> unit)
-            .apply(hkt);
+    private Stream<HkTypeError> checkHktType(TypeElement typeConstructor, DeclaredType hktInterface) {
+        return Stream.of(
+            checkHktInterfaceNotRawType(hktInterface),
+            checkAtLeastOneTypeParameter(typeConstructor),
+            checkRightHktInterface(typeConstructor, hktInterface),
+            checkTypeParameters(typeConstructor, hktInterface),
+            checkTCWitness(typeConstructor, hktInterface),
+            checkNestedTCWitnessHasNoTypeParameter(typeConstructor, hktInterface),
+            checkNestedTCWitnessIsStaticFinal(typeConstructor, hktInterface)
+        ).flatMap(HktProcessor::optionalAsStream);
     }
 
-    private static boolean validTypeParams(TypeElement tel) {
-        final int size = tel.getTypeParameters().size();
-        return size > 0 && size < 6;
+    private Optional<HkTypeError> checkHktInterfaceNotRawType(DeclaredType hktInterface) {
+
+        return hktInterface.getTypeArguments().isEmpty()
+               ? Optional.of(HKTInterfaceDeclrationIsRawType())
+               : Optional.empty();
     }
 
-    private static boolean isµ(TypeElement elt) {
-        return elt.getSimpleName().contentEquals(µTypeName)
-            && elt.getModifiers().containsAll(asList(PUBLIC, STATIC, FINAL));
+    private Optional<HkTypeError> checkAtLeastOneTypeParameter(TypeElement typeConstructor) {
+
+        return typeConstructor.getTypeParameters().isEmpty()
+               ? Optional.of(HKTypesNeedAtLeastOneTypeParameter())
+               : Optional.empty();
     }
 
-    private static String badParamsError(TypeElement tel) {
-        return String
-            .format("org.derive4j.htk :%n%s should declare between 1 and 5 (inclusive) type parameters%n"
-                    + "to be able to implement one of org.derive4j.hkt interfaces"
-                , tel.getQualifiedName());
+    private Optional<HkTypeError> checkRightHktInterface(TypeElement typeConstructor, DeclaredType hktInterface) {
+        return asTypeElement.visit(hktInterface.asElement())
+            .filter(hktInterfaceElement -> typeConstructor.getTypeParameters().size() + 1 != hktInterfaceElement.getTypeParameters().size())
+            .map(__ -> WrongHKTInterface());
     }
 
-    private static String noµError(TypeElement tel) {
-        return String.format("org.derive4j.htk :%n%s must declare an inner public static final class called 'µ'", tel.getQualifiedName());
+    private Optional<HkTypeError> checkTypeParameters(TypeElement typeConstructor, DeclaredType hktInterface) {
+
+        List<? extends TypeParameterElement> typeParameters = typeConstructor.getTypeParameters();
+        List<? extends TypeMirror> typeArguments = hktInterface.getTypeArguments();
+
+        List<TypeParameterElement> typeParamsInError = IntStream.range(0, min(typeParameters.size(), typeArguments.size() - 1))
+            .filter(i -> !Types.isSameType(typeParameters.get(i).asType(), typeArguments.get(i + 1)))
+            .mapToObj(typeParameters::get)
+            .collect(Collectors.toList());
+
+        return typeParamsInError.isEmpty()
+               ? Optional.empty()
+               : Optional.of(NotMatchingTypeParams(typeParamsInError));
     }
 
-    private static String wrongImplError(TypeElement tel, DeclaredType refDecl) {
-        return String
-            .format("org.derive4j.htk : %n%s takes %d type parameter(s). To be declared as a type constructor,%n"
-                    + "it can only implements :%n%n%s%n%n(plus any interfaces outside org.derive4j.hkt)"
-                , tel.getQualifiedName()
-                , tel.getTypeParameters().size()
-                , refDecl);
+    private Optional<HkTypeError> checkTCWitness(TypeElement typeConstructor, DeclaredType hktInterface) {
+
+        return hktInterface.getTypeArguments().stream().findFirst()
+            .flatMap(witnessTm -> asValidTCWitness(typeConstructor, witnessTm).isPresent()
+                                  ? Optional.empty()
+                                  : Optional.of(TCWitnessMustBeNestedClassOrClass())
+            );
     }
 
-    private static final class DeclaredTypeVisitor extends SimpleTypeVisitor8<DeclaredType, Unit> {
-        DeclaredTypeVisitor() {}
-        @Override
-        public DeclaredType visitDeclared(DeclaredType t, Unit __) { return t; }
-        @Override
-        protected DeclaredType defaultAction(TypeMirror e, Unit __) {
-            throw new NotADeclaredType(e);
-        }
+    private Optional<DeclaredType> asValidTCWitness(TypeElement typeConstructor, TypeMirror witnessTm) {
+        return asDeclaredType.visit(witnessTm)
+            .filter(witness ->
+                Types.isSameType(witness, Types.erasure(typeConstructor.asType()))
+                    || Types.isSameType(witness, Types.getDeclaredType(typeConstructor, typeConstructor.getTypeParameters().stream()
+                    .map(__ -> Types.getWildcardType(null, null))
+                    .toArray(TypeMirror[]::new)))
+                    || witness.asElement().getEnclosingElement().equals(typeConstructor)
+            );
+    }
 
-        @SuppressWarnings("serial")
-        private static final class NotADeclaredType extends Error {
-            private NotADeclaredType(TypeMirror tm) {
-                super(tm.toString());
-            }
-        }
+    private Optional<HkTypeError> checkNestedTCWitnessHasNoTypeParameter(TypeElement typeConstructor, DeclaredType hktInterface) {
+
+        return hktInterface.getTypeArguments().stream().findFirst()
+            .flatMap(witnessTm ->
+                asDeclaredType.visit(witnessTm).map(DeclaredType::asElement).flatMap(asTypeElement::visit)
+                    .filter(witness -> witness.getEnclosingElement().equals(typeConstructor))
+                    .flatMap(witness -> witness.getTypeParameters().isEmpty()
+                                        ? Optional.empty()
+                                        : Optional.of(NestedTCWitnessMustBeSimpleType(witness))
+                    )
+            );
+    }
+
+    private Optional<HkTypeError> checkNestedTCWitnessIsStaticFinal(TypeElement typeConstructor, DeclaredType hktInterface) {
+        return hktInterface.getTypeArguments().stream().findFirst()
+            .flatMap(witnessTm ->
+                asDeclaredType.visit(witnessTm).map(DeclaredType::asElement).flatMap(asTypeElement::visit)
+                    .filter(witness -> witness.getEnclosingElement().equals(typeConstructor))
+                    .flatMap(witness -> witness.getModifiers().containsAll(EnumSet.of(Modifier.STATIC, Modifier.FINAL))
+                                            && (!typeConstructor.getModifiers().contains(Modifier.PUBLIC) || witness.getModifiers().contains(Modifier.PUBLIC))
+                                        ? Optional.empty()
+                                        : Optional.of(NestedTCWitnessMustBeStaticFinal(witness))
+                    )
+            );
+    }
+
+
+    private Optional<DeclaredType> asHktInterface(TypeMirror tm) {
+        return asDeclaredType.visit(tm)
+            .filter(declaredType ->  Elts.getPackageOf(declaredType.asElement()).equals(Elts.getPackageOf(__Elt)))
+            .filter(declaredType -> Types.isSubtype(declaredType, Types.erasure(__Elt.asType())));
+    }
+
+    private Function<HkTypeError, Consumer<TypeElement>> reportErrors() {
+        return HkTypeErrors.cases()
+            .<Consumer<TypeElement>>HKTInterfaceDeclrationIsRawType(
+                (typeElement) -> Messager.printMessage(Diagnostic.Kind.ERROR, hKTInterfaceDeclrationIsRawTypeErrorMessage(typeElement), typeElement))
+
+            .HKTypesNeedAtLeastOneTypeParameter(
+                (typeElement) -> Messager.printMessage(Diagnostic.Kind.ERROR, hKTypesNeedAtLeastOneTypeParameterErrorMessage(typeElement), typeElement))
+
+            .WrongHKTInterface(
+                (typeElement) -> Messager.printMessage(Diagnostic.Kind.ERROR, wrongHKTInterfaceErrorMessage(typeElement), typeElement))
+
+            .NotMatchingTypeParams(typeParameterElements ->
+                (typeElement) -> typeParameterElements.stream().forEach(typeParameterElement ->
+                    Messager.printMessage(Diagnostic.Kind.ERROR, notMatchingTypeParamErrorMessage(typeElement), typeParameterElement)))
+
+            .TCWitnessMustBeNestedClassOrClass(
+                (typeElement) -> Messager.printMessage(Diagnostic.Kind.ERROR, tcWitnessMustBeNestedClassOrClassErrorMessage(typeElement), typeElement))
+
+            .NestedTCWitnessMustBeSimpleType(tcWitnessElement ->
+                (typeElement) -> Messager.printMessage(Diagnostic.Kind.ERROR, nestedTCWitnessMustBeSimpleTypeErrorMessage(), tcWitnessElement))
+
+            .NestedTCWitnessMustBeStaticFinal(tcWitnessElement ->
+                (typeElement) -> Messager.printMessage(Diagnostic.Kind.ERROR, nestedTCWitnessMustBePublicStaticErrorMessage(typeElement), tcWitnessElement));
+    }
+
+    private String hKTInterfaceDeclrationIsRawTypeErrorMessage(TypeElement tel) {
+        return format("%s interface declaration is missing type arguments:%n%s",
+            implementedHktInterfaceName(tel),
+            expectedHktInterfaceMessage(tel));
+    }
+
+    private String hKTypesNeedAtLeastOneTypeParameterErrorMessage(TypeElement tel) {
+        return format("%s need at least one type parameter to correctly implement %s",
+            tel.toString(), implementedHktInterfaceName(tel));
+    }
+
+    private String wrongHKTInterfaceErrorMessage(TypeElement tel) {
+        return format("%s is not the correct interface to use.%nGiven the number of type parameters, %s",
+            implementedHktInterfaceName(tel), expectedHktInterfaceMessage(tel));
+    }
+
+    private String notMatchingTypeParamErrorMessage(TypeElement tel) {
+        return format("The type parameters of %s must appear in the same order in the declaration of %s:%n%s",
+            tel.toString(), implementedHktInterfaceName(tel), expectedHktInterfaceMessage(tel));
+    }
+
+    private String tcWitnessMustBeNestedClassOrClassErrorMessage(TypeElement tel) {
+        return format("Type constructor witness (first type argument of %s) is incorrect:%n%s",
+            implementedHktInterfaceName(tel), expectedHktInterfaceMessage(tel));
+    }
+
+    private String nestedTCWitnessMustBeSimpleTypeErrorMessage() {
+        return "The nested class used as type constructor witness must not take any type parameter";
+    }
+
+    private String nestedTCWitnessMustBePublicStaticErrorMessage(TypeElement tel) {
+        return format("The nested class used as type constructor witness must be '%sstatic final'.",
+            tel.getModifiers().contains(Modifier.PUBLIC) ? "public " : "");
+    }
+
+    private String implementedHktInterfaceName(TypeElement tel) {
+        return tel.getInterfaces().stream().map(this::asHktInterface).flatMap(HktProcessor::optionalAsStream).findFirst()
+            .map(DeclaredType::asElement).map(Element::toString).orElse("");
+    }
+
+    private String expectedHktInterfaceMessage(TypeElement tel) {
+        return format("%s should %s %s", tel.toString(), tel.getKind() == ElementKind.CLASS ? "implements" : "extends",
+
+            cata(tel.getInterfaces().stream()
+                    .map(this::asHktInterface)
+                    .flatMap(HktProcessor::optionalAsStream)
+                    .map(hktInterface -> hktInterface.getTypeArguments().stream()
+                        .findFirst().flatMap(tm -> asValidTCWitness(tel, tm)))
+                    .flatMap(HktProcessor::optionalAsStream)
+                    .findFirst(),
+
+                tcWitness -> expectedHktInterface(tel, tcWitness.toString()),
+
+                () -> tel.getTypeParameters().size() <= 1
+                      ? expectedHktInterface(tel, Types.getDeclaredType(tel, tel.getTypeParameters().stream()
+                    .map(__ -> Types.getWildcardType(null, null))
+                    .toArray(TypeMirror[]::new)).toString())
+                      : format("%s with %s being the following nested class of %s:%n    %s",
+                          expectedHktInterface(tel, µTypeName), µTypeName, tel.toString(), "public static final class µ {}")
+
+            ));
+    }
+
+    private String expectedHktInterface(TypeElement tel, String witness) {
+        int nbTypeParameters = tel.getTypeParameters().size();
+        return format("%s%s<%s, %s>", __Elt.getQualifiedName().toString(),
+            nbTypeParameters <= 1 ? "" : String.valueOf(nbTypeParameters),
+            witness,
+            tel.getTypeParameters().stream().map(Element::asType).map(TypeMirror::toString)
+                .reduce((tp1, tp2) -> tp1 + ", " + tp2).orElse("")
+        );
     }
 
     private static final class ClassTreeVisitor extends SimpleTreeVisitor<Boolean, Unit> {
@@ -303,25 +411,35 @@ public final class HktProcessor extends AbstractProcessor {
         return a -> b -> f.apply(a, b);
     }
 
-    enum Unit { unit }
+    private enum Unit { unit }
 
     @Data
-    static abstract class Hkt {
+    static abstract class HktToValidate {
         interface Cases<R> {
-            R BadParams(TypeElement elt);
-            R Noµ(TypeElement elt);
-            R WrongImpl(TypeElement elt, DeclaredType decl);
-            R Correct();
+            R of(TypeElement typeConstructor, DeclaredType hktInterface);
         }
         abstract <R> R match(Cases<R> cases);
     }
 
-    @Data
-    static abstract class Mu {
-        interface Cases<R> {
-            R of(TypeElement asElt, TypeMirror asMirror);
+    private static final TypeVisitor<Optional<DeclaredType>, Unit> asDeclaredType = new SimpleTypeVisitor8<Optional<DeclaredType>, Unit>(
+        Optional.empty()) {
+        @Override
+        public Optional<DeclaredType> visitDeclared(final DeclaredType t, final Unit p) {
+            return Optional.of(t);
         }
-        abstract <R> R match(Cases<R> cases);
+    };
+
+    private static final ElementVisitor<Optional<TypeElement>, Unit> asTypeElement = new SimpleElementVisitor8<Optional<TypeElement>, Unit>(Optional.empty()) {
+
+        @Override
+        public Optional<TypeElement> visitType(final TypeElement e, final Unit p) {
+            return Optional.of(e);
+        }
+
+    };
+
+    private static <A> Stream<A> optionalAsStream(Optional<A> oa) {
+        return cata(oa, Stream::of, Stream::empty);
     }
 
 }
