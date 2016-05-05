@@ -280,8 +280,8 @@ public final class HktProcessor extends AbstractProcessor {
             .flatMap(witnessTm ->
                 asDeclaredType.visit(witnessTm).map(DeclaredType::asElement).flatMap(asTypeElement::visit)
                     .filter(witness -> witness.getEnclosingElement().equals(typeConstructor))
-                    .flatMap(witness -> witness.getModifiers().containsAll(EnumSet.of(Modifier.STATIC, Modifier.FINAL))
-                                            && (!typeConstructor.getModifiers().contains(Modifier.PUBLIC) || witness.getModifiers().contains(Modifier.PUBLIC))
+                    .flatMap(witness -> (witness.getKind() == ElementKind.INTERFACE ||  witness.getModifiers().contains(Modifier.STATIC))
+                                            && (!typeConstructor.getModifiers().contains(Modifier.PUBLIC) || typeConstructor.getKind() == ElementKind.INTERFACE || witness.getModifiers().contains(Modifier.PUBLIC))
                                         ? Optional.empty()
                                         : Optional.of(NestedTCWitnessMustBeStaticFinal(witness))
                     )
