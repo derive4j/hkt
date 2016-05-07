@@ -35,7 +35,6 @@ import com.sun.source.tree.Tree;
 import com.sun.source.util.SimpleTreeVisitor;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.Trees;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -94,7 +93,7 @@ public final class HktProcessor extends AbstractProcessor {
     private Types Types;
     private Elements Elts;
     private Messager Messager;
-    private Trees JTrees;
+    private Optional<HktProcessor.JdkSpecificApi> JdkSpecificApi;
 
     private TypeElement __Elt;
 
@@ -106,7 +105,7 @@ public final class HktProcessor extends AbstractProcessor {
         Types = processingEnv.getTypeUtils();
         Elts = processingEnv.getElementUtils();
         Messager = processingEnv.getMessager();
-        JTrees = Trees.instance(processingEnv);
+        JdkSpecificApi = jdkSpecificApi(processingEnv);
 
         __Elt = Elts.getTypeElement(__.class.getCanonicalName());
     }
@@ -137,32 +136,56 @@ public final class HktProcessor extends AbstractProcessor {
         return false;
     }
 
+    private interface JdkSpecificApi {
+        Stream<TypeElement> localTypes(TypeElement tel);
+    }
+
+    private static final class OpenJdkSpecificApi implements JdkSpecificApi {
+        private Trees JTrees;
+        OpenJdkSpecificApi(ProcessingEnvironment processingEnv) {
+            JTrees = Trees.instance(processingEnv);
+        }
+
+        @Override public Stream<TypeElement> localTypes(TypeElement tel) {
+            final List<? extends Element> enclosedElements = tel.getEnclosedElements();
+
+            return Stream.concat
+                (ElementFilter.constructorsIn(enclosedElements).stream()
+                    , ElementFilter.methodsIn(enclosedElements).stream()).flatMap
+                (exEl -> unNull(JTrees.getTree(exEl)).flatMap
+                    (methodTree -> unNull(JTrees.getPath(exEl)).flatMap
+                        (methodPath -> unNull(methodTree.getBody()).flatMap
+                            (methodBody -> unNull(methodBody.getStatements()).map
+                                (statements -> {
+                                    final List<TypeElement> typeElts = ElementFilter.typesIn(statements
+                                        .stream()
+                                        .filter(st -> st.accept(new ClassTreeVisitor(), Unit.unit))
+                                        .map(st ->
+                                            unNull(TreePath.getPath(methodPath, st)).flatMap
+                                                (path -> unNull(JTrees.getElement(path))))
+                                        .filter(Optional::isPresent)
+                                        .map(Optional::get)
+                                        .collect(Collectors.toList()));
+                                    return typeElts.stream();
+                                }))))
+                    .orElseGet(Stream::empty));
+        }
+    }
+
+    private static Optional<JdkSpecificApi> jdkSpecificApi(ProcessingEnvironment processingEnv) {
+        return processingEnv.getElementUtils().getTypeElement("com.sun.source.util.Trees") != null
+               ? Optional.of(new OpenJdkSpecificApi(processingEnv))
+               : Optional.empty();
+    }
+
     private Stream<TypeElement> allInnerTypes(TypeElement tel) {
         final List<? extends Element> enclosedElements = tel.getEnclosedElements();
 
         final Stream<TypeElement> memberTypes =
-            ElementFilter.typesIn(enclosedElements).stream();
+            ElementFilter.typesIn(tel.getEnclosedElements()).stream();
 
-        final Stream<TypeElement> localTypes = Stream.concat
-            (ElementFilter.constructorsIn(enclosedElements).stream()
-                , ElementFilter.methodsIn(enclosedElements).stream()).flatMap
-            (exEl -> unNull(JTrees.getTree(exEl)).flatMap
-                (methodTree -> unNull(JTrees.getPath(exEl)).flatMap
-                    (methodPath -> unNull(methodTree.getBody()).flatMap
-                        (methodBody -> unNull(methodBody.getStatements()).map
-                            (statements -> {
-                                final List<TypeElement> typeElts = ElementFilter.typesIn(statements
-                                    .stream()
-                                    .filter(st -> st.accept(new ClassTreeVisitor(), Unit.unit))
-                                    .map(st ->
-                                        unNull(TreePath.getPath(methodPath, st)).flatMap
-                                            (path -> unNull(JTrees.getElement(path))))
-                                    .filter(Optional::isPresent)
-                                    .map(Optional::get)
-                                    .collect(Collectors.toList()));
-                                return typeElts.stream();
-                            }))))
-                .orElseGet(Stream::empty));
+        final Stream<TypeElement> localTypes = JdkSpecificApi.map(jdkSpecificApi -> jdkSpecificApi.localTypes(tel))
+            .orElse(Stream.empty());
 
         final List<TypeElement> allTypes =
             Stream.concat(memberTypes, localTypes).collect(Collectors.toList());
