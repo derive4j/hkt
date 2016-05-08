@@ -7,3 +7,19 @@
 This project aims at providing type-safety for then higher kinded type encoding demonstrated in https://github.com/DanielGronau/highj via a JSR2&) annotation processor.
 
 Initial design was discussed in https://github.com/derive4j/hkt/issues/1
+
+# Usage
+
+## Maven
+```xml
+<dependency>
+  <groupId>org.derive4j.hkt</groupId>
+  <artifactId>hkt</artifactId>
+  <version>0.1</version>
+</dependency>
+```
+[search.maven]: http://search.maven.org/#search|ga|1|org.derive4j.hkt
+
+## Gradle
+```
+compile(group: 'org.derive4j.hkt', name: 'hkt', version: '0.1', ext: 'jar')
