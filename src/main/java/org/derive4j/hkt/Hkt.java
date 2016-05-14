@@ -16,6 +16,16 @@ public @interface Hkt {
    */
   String generatedIn() default "Hkt";
 
+  enum Visibility {
+    Same,
+    Package
+  }
+
+  /**
+   * Define the visibility of the generated class: same as the higher kinded class or package.
+   */
+  Visibility withVisibility() default Visibility.Same;
+
   /**
    * Template for the name of the generated methods that handle safe coercion from a {@link __} instance to the actual type.
    * Should contains {@code {ClassName}} in reference to the class of the type.
