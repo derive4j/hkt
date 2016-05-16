@@ -1,8 +1,7 @@
-package org.derive4j.hkt.typechecker;
+package org.derive4j.hkt.processor;
 
 import com.google.common.truth.Truth;
 import com.google.testing.compile.JavaFileObjects;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static com.google.testing.compile.JavaSourceSubjectFactory.javaSource;

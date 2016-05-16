@@ -27,7 +27,7 @@
     OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package org.derive4j.hkt.typechecker;
+package org.derive4j.hkt.processor;
 
 import com.google.auto.service.AutoService;
 import com.sun.source.tree.ClassTree;
@@ -35,7 +35,11 @@ import com.sun.source.tree.Tree;
 import com.sun.source.util.SimpleTreeVisitor;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.Trees;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -54,9 +58,12 @@ import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ElementVisitor;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
@@ -70,17 +77,23 @@ import javax.lang.model.util.SimpleTypeVisitor8;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import org.derive4j.Data;
+import org.derive4j.hkt.Hkt;
 import org.derive4j.hkt.__;
 
 import static java.lang.Math.min;
 import static java.lang.String.format;
-import static org.derive4j.hkt.typechecker.HkTypeErrors.HKTInterfaceDeclrationIsRawType;
-import static org.derive4j.hkt.typechecker.HkTypeErrors.HKTypesNeedAtLeastOneTypeParameter;
-import static org.derive4j.hkt.typechecker.HkTypeErrors.NestedTCWitnessMustBeSimpleType;
-import static org.derive4j.hkt.typechecker.HkTypeErrors.NestedTCWitnessMustBeStaticFinal;
-import static org.derive4j.hkt.typechecker.HkTypeErrors.NotMatchingTypeParams;
-import static org.derive4j.hkt.typechecker.HkTypeErrors.TCWitnessMustBeNestedClassOrClass;
-import static org.derive4j.hkt.typechecker.HkTypeErrors.WrongHKTInterface;
+import static java.util.Collections.unmodifiableSet;
+import static org.derive4j.hkt.processor.CodeGenConfigs.Config;
+import static org.derive4j.hkt.processor.CodeGenConfigs.setCassName;
+import static org.derive4j.hkt.processor.CodeGenConfigs.setCoerceMethodTemplate;
+import static org.derive4j.hkt.processor.CodeGenConfigs.setVisibility;
+import static org.derive4j.hkt.processor.HkTypeErrors.HKTInterfaceDeclrationIsRawType;
+import static org.derive4j.hkt.processor.HkTypeErrors.HKTypesNeedAtLeastOneTypeParameter;
+import static org.derive4j.hkt.processor.HkTypeErrors.NestedTCWitnessMustBeSimpleType;
+import static org.derive4j.hkt.processor.HkTypeErrors.NestedTCWitnessMustBeStaticFinal;
+import static org.derive4j.hkt.processor.HkTypeErrors.NotMatchingTypeParams;
+import static org.derive4j.hkt.processor.HkTypeErrors.TCWitnessMustBeNestedClassOrClass;
+import static org.derive4j.hkt.processor.HkTypeErrors.WrongHKTInterface;
 
 @AutoService(Processor.class)
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
@@ -97,6 +110,13 @@ public final class HktProcessor extends AbstractProcessor {
 
     private TypeElement __Elt;
 
+    private TypeElement HktElt;
+
+    private ExecutableElement generatedClassNameConfigMethod;
+    private ExecutableElement generatedClassVisibilityConfigMethod;
+    private ExecutableElement generatedMethodTemplateConfigMethod;
+    private ExecutableElement generatedMethodDelegationConfigMethod;
+
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
@@ -108,6 +128,17 @@ public final class HktProcessor extends AbstractProcessor {
         JdkSpecificApi = jdkSpecificApi(processingEnv);
 
         __Elt = Elts.getTypeElement(__.class.getCanonicalName());
+
+        HktElt = Elts.getTypeElement(Hkt.class.getCanonicalName());
+        List<ExecutableElement> hktMethods = ElementFilter.methodsIn(HktElt.getEnclosedElements());
+        this.generatedClassNameConfigMethod = hktMethods.stream()
+            .filter(executableElement -> "generatedIn".equals(executableElement.getSimpleName().toString())).findFirst().get();
+        this.generatedClassVisibilityConfigMethod = hktMethods.stream()
+            .filter(executableElement -> "withVisibility".equals(executableElement.getSimpleName().toString())).findFirst().get();
+        this.generatedMethodTemplateConfigMethod = hktMethods.stream()
+            .filter(executableElement -> "methodNames".equals(executableElement.getSimpleName().toString())).findFirst().get();
+        this.generatedMethodDelegationConfigMethod = hktMethods.stream()
+            .filter(executableElement -> "delegateTo".equals(executableElement.getSimpleName().toString())).findFirst().get();
     }
 
     @Override
@@ -416,6 +447,55 @@ public final class HktProcessor extends AbstractProcessor {
         );
     }
 
+
+    @Data
+    static abstract class CodeGenConfig {
+        interface Case<R> {
+            R Config(String cassName, Hkt.Visibility visibility, String coerceMethodTemplate, Set<Hkt.Generator> codeGenerator);
+        }
+        abstract <R> R match(Case<R> Config);
+
+        static final CodeGenConfig defaultConfig = Config("Hkt", Hkt.Visibility.Same, "as{ClassName}", unmodifiableSet(EnumSet.of(Hkt.Generator.derive4j)));
+    }
+
+    private CodeGenConfig codeGenConfig(Element element) {
+
+        Function<CodeGenConfig, CodeGenConfig> codeGenConfigOverride = Function.identity();
+
+        for (Element e = element; e != null; e = element.getEnclosingElement()) {
+
+            Map<? extends ExecutableElement, ? extends AnnotationValue> overridenAttributes = e.getAnnotationMirrors().stream()
+                .filter(am -> HktElt.equals(am.getAnnotationType().asElement()))
+                .map(AnnotationMirror::getElementValues)
+                .findFirst().orElse(Collections.emptyMap());
+
+            AnnotationValue classNameOverride = overridenAttributes.get(generatedClassNameConfigMethod);
+            if (classNameOverride != null) {
+                codeGenConfigOverride = setCassName((String) classNameOverride.getValue()).andThen(codeGenConfigOverride);
+            }
+
+            AnnotationValue visibilityOverride = overridenAttributes.get(generatedClassVisibilityConfigMethod);
+            if (visibilityOverride != null) {
+                codeGenConfigOverride = setVisibility((Hkt.Visibility) visibilityOverride.getValue()).andThen(codeGenConfigOverride);
+            }
+
+            AnnotationValue methodTemplateOverride = overridenAttributes.get(generatedMethodTemplateConfigMethod);
+            if (methodTemplateOverride != null) {
+                codeGenConfigOverride =  setCoerceMethodTemplate((String) methodTemplateOverride.getValue()).andThen(codeGenConfigOverride);
+            }
+
+            AnnotationValue delegationOverride = overridenAttributes.get(generatedMethodDelegationConfigMethod);
+            if (delegationOverride != null) {
+                EnumSet<Hkt.Generator> generators = EnumSet.noneOf(Hkt.Generator.class);
+                generators.addAll(Arrays.asList((Hkt.Generator[]) delegationOverride.getValue()));
+                codeGenConfigOverride = CodeGenConfigs.setCodeGenerator(unmodifiableSet(generators)).andThen(codeGenConfigOverride);
+            }
+
+        }
+
+        return codeGenConfigOverride.apply(CodeGenConfig.defaultConfig);
+    }
+
     private static final class ClassTreeVisitor extends SimpleTreeVisitor<Boolean, Unit> {
         ClassTreeVisitor() {}
         @Override
@@ -425,6 +505,8 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
     private static <T> Optional<T> unNull(T t) { return Optional.ofNullable(t); }
+
+    private static <K, V> Optional<V> safeGet(K key, Map<? super K, V> map) { return unNull(map.get(key)); }
 
     private static <T, R> R cata(Optional<T> opt, Function<T, R> f, Supplier<R> r) {
         return opt.map(f).orElseGet(r);
@@ -466,3 +548,4 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
 }
+
