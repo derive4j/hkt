@@ -32,10 +32,7 @@ package org.derive4j.hkt.processor;
 import com.google.auto.service.AutoService;
 import org.derive4j.hkt.Hkt;
 import org.derive4j.hkt.__;
-import org.derive4j.hkt.processor.DataTypes.GenCodeConf;
-import org.derive4j.hkt.processor.DataTypes.HkTypeError;
-import org.derive4j.hkt.processor.DataTypes.HktToValidate;
-import org.derive4j.hkt.processor.DataTypes.Opt;
+import org.derive4j.hkt.processor.DataTypes.*;
 import org.derive4j.hkt.processor.JavaCompiler.OpenJdkSpecificApi;
 
 import javax.annotation.processing.*;
@@ -396,18 +393,18 @@ public final class HktProcessor extends AbstractProcessor {
         return codeGenConfigOverride.apply(GenCodeConf.defaultConfig);
     }
 
-    private static final TypeVisitor<Optional<DeclaredType>, DataTypes.Unit> asDeclaredType =
-        new SimpleTypeVisitor8<Optional<DeclaredType>, DataTypes.Unit>(Optional.empty()) {
+    private static final TypeVisitor<Optional<DeclaredType>, Unit> asDeclaredType =
+        new SimpleTypeVisitor8<Optional<DeclaredType>, Unit>(Optional.empty()) {
             @Override
-            public Optional<DeclaredType> visitDeclared(final DeclaredType t, final DataTypes.Unit p) {
+            public Optional<DeclaredType> visitDeclared(final DeclaredType t, final Unit p) {
                 return Optional.of(t);
             }
         };
 
-    private static final ElementVisitor<Optional<TypeElement>, DataTypes.Unit> asTypeElement =
-        new SimpleElementVisitor8<Optional<TypeElement>, DataTypes.Unit>(Optional.empty()) {
+    private static final ElementVisitor<Optional<TypeElement>, Unit> asTypeElement =
+        new SimpleElementVisitor8<Optional<TypeElement>, Unit>(Optional.empty()) {
             @Override
-            public Optional<TypeElement> visitType(final TypeElement e, final DataTypes.Unit p) {
+            public Optional<TypeElement> visitType(final TypeElement e, final Unit p) {
                 return Optional.of(e);
             }
         };
