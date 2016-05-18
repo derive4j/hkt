@@ -15,7 +15,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.derive4j.hkt.processor.CodeGenConfigs.Config;
+import static org.derive4j.hkt.processor.GenCodeConfs.Conf;
 
 final class DataTypes {
     private DataTypes() {}
@@ -44,17 +44,17 @@ final class DataTypes {
     }
 
     @Data
-    abstract static class CodeGenConfig {
+    abstract static class GenCodeConf {
         interface Case<R> {
-            R Config(String cassName, Hkt.Visibility visibility, String coerceMethodTemplate, Set<Hkt.Generator> codeGenerator);
+            R Conf(String className, Hkt.Visibility visibility, String coerceMethodTemplate, Set<Hkt.Generator> codeGenerator);
         }
 
         abstract <R> R match(Case<R> Config);
 
-        static final CodeGenConfig defaultConfig = Config("Hkt", Hkt.Visibility.Same, "as{ClassName}", unmodifiableSet(EnumSet.of(Hkt.Generator.derive4j)));
+        static final GenCodeConf defaultConfig = Conf("Hkt", Hkt.Visibility.Same, "as{ClassName}", unmodifiableSet(EnumSet.of(Hkt.Generator.derive4j)));
     }
 
-    public static final class Opt {
+    static final class Opt {
         private Opt() {}
 
         static <T> Optional<T> unNull(T t) { return Optional.ofNullable(t); }

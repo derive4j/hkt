@@ -32,10 +32,11 @@ package org.derive4j.hkt.processor;
 import com.google.auto.service.AutoService;
 import org.derive4j.hkt.Hkt;
 import org.derive4j.hkt.__;
-import org.derive4j.hkt.processor.DataTypes.CodeGenConfig;
+import org.derive4j.hkt.processor.DataTypes.GenCodeConf;
 import org.derive4j.hkt.processor.DataTypes.HkTypeError;
 import org.derive4j.hkt.processor.DataTypes.HktToValidate;
 import org.derive4j.hkt.processor.DataTypes.Opt;
+import org.derive4j.hkt.processor.JavaCompiler.OpenJdkSpecificApi;
 
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
@@ -55,7 +56,7 @@ import java.util.stream.Stream;
 import static java.lang.Math.min;
 import static java.lang.String.format;
 import static java.util.Collections.unmodifiableSet;
-import static org.derive4j.hkt.processor.CodeGenConfigs.*;
+import static org.derive4j.hkt.processor.GenCodeConfs.*;
 import static org.derive4j.hkt.processor.HkTypeErrors.*;
 
 @AutoService(Processor.class)
@@ -132,7 +133,7 @@ public final class HktProcessor extends AbstractProcessor {
 
     private static Optional<JavaCompiler.JdkSpecificApi> jdkSpecificApi(ProcessingEnvironment processingEnv) {
         return processingEnv.getElementUtils().getTypeElement("com.sun.source.util.Trees") != null
-               ? Optional.of(new JavaCompiler.OpenJdkSpecificApi(processingEnv))
+               ? Optional.of(new OpenJdkSpecificApi(processingEnv))
                : Optional.empty();
     }
 
@@ -357,9 +358,9 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
 
-    private CodeGenConfig codeGenConfig(Element element) {
+    private GenCodeConf genCodeConf(Element element) {
 
-        Function<CodeGenConfig, CodeGenConfig> codeGenConfigOverride = Function.identity();
+        Function<GenCodeConf, DataTypes.GenCodeConf> codeGenConfigOverride = Function.identity();
 
         for (Element e = element; e != null; e = element.getEnclosingElement()) {
 
@@ -370,7 +371,7 @@ public final class HktProcessor extends AbstractProcessor {
 
             AnnotationValue classNameOverride = overridenAttributes.get(generatedClassNameConfigMethod);
             if (classNameOverride != null) {
-                codeGenConfigOverride = setCassName((String) classNameOverride.getValue()).andThen(codeGenConfigOverride);
+                codeGenConfigOverride = setClassName((String) classNameOverride.getValue()).andThen(codeGenConfigOverride);
             }
 
             AnnotationValue visibilityOverride = overridenAttributes.get(generatedClassVisibilityConfigMethod);
@@ -387,12 +388,12 @@ public final class HktProcessor extends AbstractProcessor {
             if (delegationOverride != null) {
                 EnumSet<Hkt.Generator> generators = EnumSet.noneOf(Hkt.Generator.class);
                 generators.addAll(Arrays.asList((Hkt.Generator[]) delegationOverride.getValue()));
-                codeGenConfigOverride = CodeGenConfigs.setCodeGenerator(unmodifiableSet(generators)).andThen(codeGenConfigOverride);
+                codeGenConfigOverride =  setCodeGenerator(unmodifiableSet(generators)).andThen(codeGenConfigOverride);
             }
 
         }
 
-        return codeGenConfigOverride.apply(CodeGenConfig.defaultConfig);
+        return codeGenConfigOverride.apply(GenCodeConf.defaultConfig);
     }
 
     private static final TypeVisitor<Optional<DeclaredType>, DataTypes.Unit> asDeclaredType =

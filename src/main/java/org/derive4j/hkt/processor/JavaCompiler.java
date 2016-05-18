@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.derive4j.hkt.processor.DataTypes.Opt.unNull;
 import static org.derive4j.hkt.processor.DataTypes.Unit.unit;
 
 final class JavaCompiler {
@@ -37,17 +38,17 @@ final class JavaCompiler {
             return Stream.concat
                 (ElementFilter.constructorsIn(enclosedElements).stream()
                     , ElementFilter.methodsIn(enclosedElements).stream()).flatMap
-                (exEl -> Opt.unNull(JTrees.getTree(exEl)).flatMap
-                    (methodTree -> Opt.unNull(JTrees.getPath(exEl)).flatMap
-                        (methodPath -> Opt.unNull(methodTree.getBody()).flatMap
-                            (methodBody -> Opt.unNull(methodBody.getStatements()).map
+                (exEl -> unNull(JTrees.getTree(exEl)).flatMap
+                    (methodTree -> unNull(JTrees.getPath(exEl)).flatMap
+                        (methodPath -> unNull(methodTree.getBody()).flatMap
+                            (methodBody -> unNull(methodBody.getStatements()).map
                                 (statements -> {
                                     final List<TypeElement> typeElts = ElementFilter.typesIn(statements
                                         .stream()
                                         .filter(st -> st.accept(new ClassTreeVisitor(), unit))
                                         .flatMap(st ->
-                                            Opt.asStream(Opt.unNull(TreePath.getPath(methodPath, st)).flatMap
-                                                (path -> Opt.unNull(JTrees.getElement(path)))))
+                                            Opt.asStream(unNull(TreePath.getPath(methodPath, st)).flatMap
+                                                (path -> unNull(JTrees.getElement(path)))))
                                         .collect(Collectors.toList()));
                                     return typeElts.stream();
                                 }))))
