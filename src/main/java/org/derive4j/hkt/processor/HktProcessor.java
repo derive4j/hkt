@@ -30,14 +30,12 @@
 package org.derive4j.hkt.processor;
 
 import com.google.auto.service.AutoService;
-import com.sun.source.tree.ClassTree;
-import com.sun.source.tree.Tree;
-import com.sun.source.util.SimpleTreeVisitor;
-import com.sun.source.util.TreePath;
-import com.sun.source.util.Trees;
-import org.derive4j.Data;
 import org.derive4j.hkt.Hkt;
 import org.derive4j.hkt.__;
+import org.derive4j.hkt.processor.DataTypes.CodeGenConfig;
+import org.derive4j.hkt.processor.DataTypes.HkTypeError;
+import org.derive4j.hkt.processor.DataTypes.HktToValidate;
+import org.derive4j.hkt.processor.DataTypes.Opt;
 
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
@@ -48,10 +46,8 @@ import javax.lang.model.type.TypeVisitor;
 import javax.lang.model.util.*;
 import javax.tools.Diagnostic;
 import java.util.*;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -73,7 +69,7 @@ public final class HktProcessor extends AbstractProcessor {
     private Types Types;
     private Elements Elts;
     private Messager Messager;
-    private Optional<HktProcessor.JdkSpecificApi> JdkSpecificApi;
+    private Optional<JavaCompiler.JdkSpecificApi> JdkSpecificApi;
 
     private TypeElement __Elt;
 
@@ -134,45 +130,9 @@ public final class HktProcessor extends AbstractProcessor {
         return false;
     }
 
-    private interface JdkSpecificApi {
-        Stream<TypeElement> localTypes(TypeElement tel);
-    }
-
-    private static final class OpenJdkSpecificApi implements JdkSpecificApi {
-        private Trees JTrees;
-        OpenJdkSpecificApi(ProcessingEnvironment processingEnv) {
-            JTrees = Trees.instance(processingEnv);
-        }
-
-        @Override public Stream<TypeElement> localTypes(TypeElement tel) {
-            final List<? extends Element> enclosedElements = tel.getEnclosedElements();
-
-            return Stream.concat
-                (ElementFilter.constructorsIn(enclosedElements).stream()
-                    , ElementFilter.methodsIn(enclosedElements).stream()).flatMap
-                (exEl -> unNull(JTrees.getTree(exEl)).flatMap
-                    (methodTree -> unNull(JTrees.getPath(exEl)).flatMap
-                        (methodPath -> unNull(methodTree.getBody()).flatMap
-                            (methodBody -> unNull(methodBody.getStatements()).map
-                                (statements -> {
-                                    final List<TypeElement> typeElts = ElementFilter.typesIn(statements
-                                        .stream()
-                                        .filter(st -> st.accept(new ClassTreeVisitor(), Unit.unit))
-                                        .map(st ->
-                                            unNull(TreePath.getPath(methodPath, st)).flatMap
-                                                (path -> unNull(JTrees.getElement(path))))
-                                        .filter(Optional::isPresent)
-                                        .map(Optional::get)
-                                        .collect(Collectors.toList()));
-                                    return typeElts.stream();
-                                }))))
-                    .orElseGet(Stream::empty));
-        }
-    }
-
-    private static Optional<JdkSpecificApi> jdkSpecificApi(ProcessingEnvironment processingEnv) {
+    private static Optional<JavaCompiler.JdkSpecificApi> jdkSpecificApi(ProcessingEnvironment processingEnv) {
         return processingEnv.getElementUtils().getTypeElement("com.sun.source.util.Trees") != null
-               ? Optional.of(new OpenJdkSpecificApi(processingEnv))
+               ? Optional.of(new JavaCompiler.OpenJdkSpecificApi(processingEnv))
                : Optional.empty();
     }
 
@@ -195,23 +155,9 @@ public final class HktProcessor extends AbstractProcessor {
     private Stream<HktToValidate> asHktToValidate(TypeElement tEl) {
         return tEl.getInterfaces().stream()
             .map(this::asHktInterface)
-            .flatMap(HktProcessor::optionalAsStream)
+            .flatMap(Opt::asStream)
             .limit(1)
             .map(hktInterface -> HktToValidates.of(tEl, hktInterface));
-    }
-
-    @Data
-    static abstract class HkTypeError {
-        interface Cases<R> {
-            R HKTInterfaceDeclrationIsRawType();
-            R HKTypesNeedAtLeastOneTypeParameter();
-            R WrongHKTInterface();
-            R NotMatchingTypeParams(List<TypeParameterElement> missingOrOutOfOrderTypeArguments);
-            R TCWitnessMustBeNestedClassOrClass();
-            R NestedTCWitnessMustBeSimpleType(TypeElement tcWitnessElement);
-            R NestedTCWitnessMustBeStaticFinal(TypeElement tcWitnessElement);
-        }
-        abstract <R> R match(Cases<R> cases);
     }
 
     private Stream<HkTypeError> checkHktType(TypeElement typeConstructor, DeclaredType hktInterface) {
@@ -223,18 +169,16 @@ public final class HktProcessor extends AbstractProcessor {
             checkTCWitness(typeConstructor, hktInterface),
             checkNestedTCWitnessHasNoTypeParameter(typeConstructor, hktInterface),
             checkNestedTCWitnessIsStaticFinal(typeConstructor, hktInterface)
-        ).flatMap(HktProcessor::optionalAsStream);
+        ).flatMap(Opt::asStream);
     }
 
     private Optional<HkTypeError> checkHktInterfaceNotRawType(DeclaredType hktInterface) {
-
         return hktInterface.getTypeArguments().isEmpty()
                ? Optional.of(HKTInterfaceDeclrationIsRawType())
                : Optional.empty();
     }
 
     private Optional<HkTypeError> checkAtLeastOneTypeParameter(TypeElement typeConstructor) {
-
         return typeConstructor.getTypeParameters().isEmpty()
                ? Optional.of(HKTypesNeedAtLeastOneTypeParameter())
                : Optional.empty();
@@ -375,19 +319,19 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
     private String implementedHktInterfaceName(TypeElement tel) {
-        return tel.getInterfaces().stream().map(this::asHktInterface).flatMap(HktProcessor::optionalAsStream).findFirst()
+        return tel.getInterfaces().stream().map(this::asHktInterface).flatMap(Opt::asStream).findFirst()
             .map(DeclaredType::asElement).map(Element::toString).orElse("");
     }
 
     private String expectedHktInterfaceMessage(TypeElement tel) {
         return format("%s should %s %s", tel.toString(), tel.getKind() == ElementKind.CLASS ? "implements" : "extends",
 
-            cata(tel.getInterfaces().stream()
+            Opt.cata(tel.getInterfaces().stream()
                     .map(this::asHktInterface)
-                    .flatMap(HktProcessor::optionalAsStream)
+                    .flatMap(Opt::asStream)
                     .map(hktInterface -> hktInterface.getTypeArguments().stream()
                         .findFirst().flatMap(tm -> asValidTCWitness(tel, tm)))
-                    .flatMap(HktProcessor::optionalAsStream)
+                    .flatMap(Opt::asStream)
                     .findFirst(),
 
                 tcWitness -> expectedHktInterface(tel, tcWitness.toString()),
@@ -412,16 +356,6 @@ public final class HktProcessor extends AbstractProcessor {
         );
     }
 
-
-    @Data
-    static abstract class CodeGenConfig {
-        interface Case<R> {
-            R Config(String cassName, Hkt.Visibility visibility, String coerceMethodTemplate, Set<Hkt.Generator> codeGenerator);
-        }
-        abstract <R> R match(Case<R> Config);
-
-        static final CodeGenConfig defaultConfig = Config("Hkt", Hkt.Visibility.Same, "as{ClassName}", unmodifiableSet(EnumSet.of(Hkt.Generator.derive4j)));
-    }
 
     private CodeGenConfig codeGenConfig(Element element) {
 
@@ -461,56 +395,21 @@ public final class HktProcessor extends AbstractProcessor {
         return codeGenConfigOverride.apply(CodeGenConfig.defaultConfig);
     }
 
-    private static final class ClassTreeVisitor extends SimpleTreeVisitor<Boolean, Unit> {
-        ClassTreeVisitor() {}
-        @Override
-        public Boolean visitClass(ClassTree node, Unit __) { return true; }
-        @Override
-        protected Boolean defaultAction(Tree node, Unit __) { return false; }
-    }
+    private static final TypeVisitor<Optional<DeclaredType>, DataTypes.Unit> asDeclaredType =
+        new SimpleTypeVisitor8<Optional<DeclaredType>, DataTypes.Unit>(Optional.empty()) {
+            @Override
+            public Optional<DeclaredType> visitDeclared(final DeclaredType t, final DataTypes.Unit p) {
+                return Optional.of(t);
+            }
+        };
 
-    private static <T> Optional<T> unNull(T t) { return Optional.ofNullable(t); }
-
-    private static <K, V> Optional<V> safeGet(K key, Map<? super K, V> map) { return unNull(map.get(key)); }
-
-    private static <T, R> R cata(Optional<T> opt, Function<T, R> f, Supplier<R> r) {
-        return opt.map(f).orElseGet(r);
-    }
-
-    private static <A, B, C> Function<A, Function<B, C>> curry(BiFunction<A, B, C> f) {
-        return a -> b -> f.apply(a, b);
-    }
-
-    private enum Unit { unit }
-
-    @Data
-    static abstract class HktToValidate {
-        interface Cases<R> {
-            R of(TypeElement typeConstructor, DeclaredType hktInterface);
-        }
-        abstract <R> R match(Cases<R> cases);
-    }
-
-    private static final TypeVisitor<Optional<DeclaredType>, Unit> asDeclaredType = new SimpleTypeVisitor8<Optional<DeclaredType>, Unit>(
-        Optional.empty()) {
-        @Override
-        public Optional<DeclaredType> visitDeclared(final DeclaredType t, final Unit p) {
-            return Optional.of(t);
-        }
-    };
-
-    private static final ElementVisitor<Optional<TypeElement>, Unit> asTypeElement = new SimpleElementVisitor8<Optional<TypeElement>, Unit>(Optional.empty()) {
-
-        @Override
-        public Optional<TypeElement> visitType(final TypeElement e, final Unit p) {
-            return Optional.of(e);
-        }
-
-    };
-
-    private static <A> Stream<A> optionalAsStream(Optional<A> oa) {
-        return cata(oa, Stream::of, Stream::empty);
-    }
+    private static final ElementVisitor<Optional<TypeElement>, DataTypes.Unit> asTypeElement =
+        new SimpleElementVisitor8<Optional<TypeElement>, DataTypes.Unit>(Optional.empty()) {
+            @Override
+            public Optional<TypeElement> visitType(final TypeElement e, final DataTypes.Unit p) {
+                return Optional.of(e);
+            }
+        };
 
 }
 
