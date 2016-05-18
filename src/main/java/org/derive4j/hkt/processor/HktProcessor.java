@@ -35,13 +35,19 @@ import com.sun.source.tree.Tree;
 import com.sun.source.util.SimpleTreeVisitor;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.Trees;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import org.derive4j.Data;
+import org.derive4j.hkt.Hkt;
+import org.derive4j.hkt.__;
+
+import javax.annotation.processing.*;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.*;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVisitor;
+import javax.lang.model.util.*;
+import javax.tools.Diagnostic;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -49,51 +55,12 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import javax.annotation.processing.AbstractProcessor;
-import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
-import javax.annotation.processing.RoundEnvironment;
-import javax.annotation.processing.SupportedAnnotationTypes;
-import javax.annotation.processing.SupportedSourceVersion;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.AnnotationValue;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ElementVisitor;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.TypeParameterElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.type.TypeVisitor;
-import javax.lang.model.util.ElementFilter;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.SimpleElementVisitor8;
-import javax.lang.model.util.SimpleTypeVisitor8;
-import javax.lang.model.util.Types;
-import javax.tools.Diagnostic;
-import org.derive4j.Data;
-import org.derive4j.hkt.Hkt;
-import org.derive4j.hkt.__;
 
 import static java.lang.Math.min;
 import static java.lang.String.format;
 import static java.util.Collections.unmodifiableSet;
-import static org.derive4j.hkt.processor.CodeGenConfigs.Config;
-import static org.derive4j.hkt.processor.CodeGenConfigs.setCassName;
-import static org.derive4j.hkt.processor.CodeGenConfigs.setCoerceMethodTemplate;
-import static org.derive4j.hkt.processor.CodeGenConfigs.setVisibility;
-import static org.derive4j.hkt.processor.HkTypeErrors.HKTInterfaceDeclrationIsRawType;
-import static org.derive4j.hkt.processor.HkTypeErrors.HKTypesNeedAtLeastOneTypeParameter;
-import static org.derive4j.hkt.processor.HkTypeErrors.NestedTCWitnessMustBeSimpleType;
-import static org.derive4j.hkt.processor.HkTypeErrors.NestedTCWitnessMustBeStaticFinal;
-import static org.derive4j.hkt.processor.HkTypeErrors.NotMatchingTypeParams;
-import static org.derive4j.hkt.processor.HkTypeErrors.TCWitnessMustBeNestedClassOrClass;
-import static org.derive4j.hkt.processor.HkTypeErrors.WrongHKTInterface;
+import static org.derive4j.hkt.processor.CodeGenConfigs.*;
+import static org.derive4j.hkt.processor.HkTypeErrors.*;
 
 @AutoService(Processor.class)
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
@@ -110,7 +77,7 @@ public final class HktProcessor extends AbstractProcessor {
 
     private TypeElement __Elt;
 
-    private TypeElement HktElt;
+    private TypeElement HktAnnot;
 
     private ExecutableElement generatedClassNameConfigMethod;
     private ExecutableElement generatedClassVisibilityConfigMethod;
@@ -129,16 +96,16 @@ public final class HktProcessor extends AbstractProcessor {
 
         __Elt = Elts.getTypeElement(__.class.getCanonicalName());
 
-        HktElt = Elts.getTypeElement(Hkt.class.getCanonicalName());
-        List<ExecutableElement> hktMethods = ElementFilter.methodsIn(HktElt.getEnclosedElements());
-        this.generatedClassNameConfigMethod = hktMethods.stream()
-            .filter(executableElement -> "generatedIn".equals(executableElement.getSimpleName().toString())).findFirst().get();
-        this.generatedClassVisibilityConfigMethod = hktMethods.stream()
-            .filter(executableElement -> "withVisibility".equals(executableElement.getSimpleName().toString())).findFirst().get();
-        this.generatedMethodTemplateConfigMethod = hktMethods.stream()
-            .filter(executableElement -> "methodNames".equals(executableElement.getSimpleName().toString())).findFirst().get();
-        this.generatedMethodDelegationConfigMethod = hktMethods.stream()
-            .filter(executableElement -> "delegateTo".equals(executableElement.getSimpleName().toString())).findFirst().get();
+        HktAnnot = Elts.getTypeElement(Hkt.class.getCanonicalName());
+        final List<ExecutableElement> hktMethods = ElementFilter.methodsIn(HktAnnot.getEnclosedElements());
+        generatedClassNameConfigMethod = hktMethods.stream()
+            .filter(mth -> "generatedIn".equals(mth.getSimpleName().toString())).findFirst().get();
+        generatedClassVisibilityConfigMethod = hktMethods.stream()
+            .filter(mth -> "withVisibility".equals(mth.getSimpleName().toString())).findFirst().get();
+        generatedMethodTemplateConfigMethod = hktMethods.stream()
+            .filter(mth -> "methodNames".equals(mth.getSimpleName().toString())).findFirst().get();
+        generatedMethodDelegationConfigMethod = hktMethods.stream()
+            .filter(mth -> "delegateTo".equals(mth.getSimpleName().toString())).findFirst().get();
     }
 
     @Override
@@ -210,8 +177,6 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
     private Stream<TypeElement> allInnerTypes(TypeElement tel) {
-        final List<? extends Element> enclosedElements = tel.getEnclosedElements();
-
         final Stream<TypeElement> memberTypes =
             ElementFilter.typesIn(tel.getEnclosedElements()).stream();
 
@@ -465,7 +430,7 @@ public final class HktProcessor extends AbstractProcessor {
         for (Element e = element; e != null; e = element.getEnclosingElement()) {
 
             Map<? extends ExecutableElement, ? extends AnnotationValue> overridenAttributes = e.getAnnotationMirrors().stream()
-                .filter(am -> HktElt.equals(am.getAnnotationType().asElement()))
+                .filter(am -> HktAnnot.equals(am.getAnnotationType().asElement()))
                 .map(AnnotationMirror::getElementValues)
                 .findFirst().orElse(Collections.emptyMap());
 
