@@ -2,7 +2,8 @@ package org.derive4j.hkt;
 
 public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
 
-  private Leibniz() {}
+  private Leibniz() {
+  }
 
   public static <A> Leibniz<A, A> refl() {
     // The only possible implementation :
@@ -46,37 +47,52 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
   public final <f, C> Leibniz<__<__<f, A>, C>, __<__<f, B>, C>> lift2() {
     return Lift2.ofHkt(subst(new Lift2<>(Leibniz.<__<__<f, A>, C>>refl()))).leib;
   }
+  public final <C, D> Lift2ForAllF<A, C, B, D> lift2(Leibniz<C, D> cd) {
+    return new Lift2ForAllF<A, C, B, D>() {
+      @Override public <f> Leibniz<__<__<f, A>, C>, __<__<f, B>, D>> f() {
 
-  public final <f, C, D> Leibniz<__<__<f, A>, C>, __<__<f, B>, D>> lift2(Leibniz<C, D> cd) {
+        Leibniz<__<__<f, A>, C>, __<__<f, B>, C>> abLift = lift2();
+        Leibniz<__<__<f, B>, C>, __<__<f, B>, D>> cdLift = cd.lift();
 
-    Leibniz<__<__<f, A>, C>, __<__<f, B>, C>> abLift = lift2();
-    Leibniz<__<__<f, B>, C>, __<__<f, B>, D>> cdLift = cd.lift();
-
-    return new Leibniz<__<__<f, A>, C>, __<__<f, B>, D>>() {
-      @Override public <f2> __<f2, __<__<f, B>, D>> subst(__<f2, __<__<f, A>, C>> fa) {
-        return cdLift.subst(abLift.subst(fa));
+        return new Leibniz<__<__<f, A>, C>, __<__<f, B>, D>>() {
+          @Override public <f2> __<f2, __<__<f, B>, D>> subst(__<f2, __<__<f, A>, C>> fa) {
+            return cdLift.subst(abLift.subst(fa));
+          }
+        };
       }
     };
-  }
 
+  }
   public final <f, C, D> Leibniz<__<__<__<f, A>, C>, D>, __<__<__<f, B>, C>, D>> lift3() {
     return Lift3.ofHkt(subst(new Lift3<>(Leibniz.<__<__<__<f, A>, C>, D>>refl()))).leib;
   }
+  public final <C, D, E, F> Lift3ForAllF<A, C, E, B, D, F> lift3(Leibniz<C, D> cd, Leibniz<E, F> ef) {
 
-  public final <f, C, D, E, F> Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, D>, F>> lift3(Leibniz<C, D> cd, Leibniz<E, F> ef) {
+    return new Lift3ForAllF<A, C, E, B, D, F>() {
+      @Override public <f> Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, D>, F>> f() {
+        Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, C>, E>> abLift = lift3();
+        Leibniz<__<__<__<f, B>, C>, E>, __<__<__<f, B>, D>, E>> cdLift = cd.lift2();
+        Leibniz<__<__<__<f, B>, D>, E>, __<__<__<f, B>, D>, F>> efLift = ef.lift();
 
-    Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, C>, E>> abLift = lift3();
-    Leibniz<__<__<__<f, B>, C>, E>, __<__<__<f, B>, D>, E>> cdLift = cd.lift2();
-    Leibniz<__<__<__<f, B>, D>, E>, __<__<__<f, B>, D>, F>> efLift = ef.lift();
-
-    return new Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, D>, F>>() {
-      @Override public <f2> __<f2, __<__<__<f, B>, D>, F>> subst(__<f2, __<__<__<f, A>, C>, E>> fa) {
-        return efLift.subst(cdLift.subst(abLift.subst(fa)));
+        return new Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, D>, F>>() {
+          @Override public <f2> __<f2, __<__<__<f, B>, D>, F>> subst(__<f2, __<__<__<f, A>, C>, E>> fa) {
+            return efLift.subst(cdLift.subst(abLift.subst(fa)));
+          }
+        };
       }
     };
+
   }
 
   public enum µ {}
+
+  public interface Lift2ForAllF<A, C, B, D> {
+    <f> Leibniz<__<__<f, A>, C>, __<__<f, B>, D>> f();
+  }
+
+  public interface Lift3ForAllF<A, C, E, B, D, F> {
+    <f> Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, D>, F>> f();
+  }
 
   private static class Id<A> implements __<Id.µ, A> {
 
