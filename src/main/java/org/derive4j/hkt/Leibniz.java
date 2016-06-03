@@ -83,6 +83,15 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
     };
 
   }
+  
+  public static <f, A, B> Leibniz<A, B> lower(Leibniz<__<f,A>, __<f,B>> a) {
+    return new Leibniz<A, B>() {
+      @Override
+      public <f> __<f, B> subst(__<f, A> fa) {
+          a.
+      }
+    };
+  }
 
   public enum µ {}
 
@@ -166,6 +175,21 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
       return (Lift3<f, C, D, A, B>) hkLift;
     }
 
+    enum µ {}
+  }
+  
+  private static class Lower<f, A, B, X extends __<f, A>, Y extends __<f, B>> implements __5<Lower.µ, f, A, B, X, Y> {
+    
+    final A a;
+    
+    Lower(A a) {
+      this.a = a;
+    }
+    
+    static <f, A, X extends __<f, A>> Lower<f, A, X> ofHkt(__<__<__<Lower.µ, f>,A>,X> hkLower) {
+      return (Lower<f, A, X>)hkLower;
+    }
+    
     enum µ {}
   }
 
