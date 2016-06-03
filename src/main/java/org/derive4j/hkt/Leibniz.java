@@ -85,12 +85,9 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
   }
   
   public static <f, A, B> Leibniz<A, B> lower(Leibniz<__<f,A>, __<f,B>> a) {
-    return new Leibniz<A, B>() {
-      @Override
-      public <f> __<f, B> subst(__<f, A> fa) {
-          a.
-      }
-    };
+    //return Symm.ofHkt(subst(new Symm<>(refl()))).leib;
+    //a.subst(new Lower<f, A, B, __<f, A>, __<f, B>>())
+    Lower.ofHkt(a.subst(new Lower<f, A, A, __<f, A>, __<f, A>>(Leibniz.refl())));
   }
 
   public enum µ {}
@@ -180,14 +177,14 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
   
   private static class Lower<f, A, B, X extends __<f, A>, Y extends __<f, B>> implements __5<Lower.µ, f, A, B, X, Y> {
     
-    final A a;
+    final Leibniz<A,B> leib;
     
-    Lower(A a) {
-      this.a = a;
+    Lower(Leibniz<A,B> leib) {
+      this.leib = leib;
     }
     
-    static <f, A, X extends __<f, A>> Lower<f, A, X> ofHkt(__<__<__<Lower.µ, f>,A>,X> hkLower) {
-      return (Lower<f, A, X>)hkLower;
+    static <f, A, B, X extends __<f, A>, Y extends __<f, B>> Lower<f, A, B, X, Y> ofHkt(__<__<__<__<__<Lower.µ, f>,A>,B>,X>,Y> hkLower) {
+      return (Lower<f, A, B, X, Y>)hkLower;
     }
     
     enum µ {}
