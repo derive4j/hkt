@@ -173,14 +173,14 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
     enum µ {}
   }
   
-  private static class Lower<f, X, Y> implements __2<Lower.µ, X, Y> {
+  private static class Lower<f, X, Y> implements __3<Lower.µ, f, X, Y> {
     final Lower_<f, ?, ?, X, Y> lower_;
     
     Lower(Lower_<f, ?, ?, X, Y> lower_) {
       this.lower_ = lower_;
     }
     
-    static <f, X, Y> Lower<f, X, Y> ofHkt(__<__<Lower.µ, X>, Y> hkLower) {
+    static <f, X, Y> Lower<f, X, Y> ofHkt(__<__<__<Lower.µ, f>, X>, Y> hkLower) {
       return (Lower<f, X, Y>)hkLower;
     }
     
