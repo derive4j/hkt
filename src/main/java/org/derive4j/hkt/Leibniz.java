@@ -48,6 +48,18 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
   }
 
   /**
+   * Reify the higher kinded type equality: {@code __<__<µ, A>} =:= {@code Leibniz<A, B>}
+   * that is guaranteed by the hkt type checker.
+   *
+   * @param <A> a type {@code A}.
+   * @param <B> a type which is guaranteed to be same as {@code A}.
+   * @return a leibniz instance witness of the type equality.
+   */
+  public static <A, B> Leibniz<__<__<µ, A>, B>, Leibniz<A, B>> hkt() {
+    return (Leibniz) refl();
+  }
+
+  /**
    * Leibnizian equality states that two things are equal if you can substitute one for the other in all contexts.
    *
    * @param fa a term of containing {@code A}.
@@ -63,7 +75,7 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
    * @return the same value, after type substitution.
    */
   public final B apply(A a) {
-    return Id.ofHkt(subst(new Id<>(a))).run;
+    return Coerce.ofHkt(subst(new Coerce<>(a))).uncoerce;
   }
 
   /**
@@ -108,7 +120,7 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
    * @return the leibniz equality in the context of the specified type constructor.
    */
   public final <f> Leibniz<__<f, A>, __<f, B>> lift() {
-    return Lift.ofHkt(subst(new Lift<>(Leibniz.<__<f, A>>refl()))).leib;
+    return Lift.ofHkt(subst(new Lift<>(Leibniz.<__<f, A>>refl()))).unlift;
   }
 
   /**
@@ -119,7 +131,7 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
    * @return the leibniz equality in the context of the specified type constructor.
    */
   public final <f, C> Leibniz<__<__<f, A>, C>, __<__<f, B>, C>> lift2() {
-    return Lift2.ofHkt(subst(new Lift2<>(Leibniz.<__<__<f, A>, C>>refl()))).leib;
+    return Lift2.ofHkt(subst(new Lift2<>(Leibniz.<__<__<f, A>, C>>refl()))).unlift2;
   }
 
   /**
@@ -130,20 +142,8 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
    * @param <D> the last type variable after substitution.
    * @return a factory to lift the leibniz instances into any type constructor.
    */
-  public final <C, D> Lift2ForAllF<A, C, B, D> lift2(Leibniz<C, D> cd) {
-    return new Lift2ForAllF<A, C, B, D>() {
-      @Override public <f> Leibniz<__<__<f, A>, C>, __<__<f, B>, D>> f() {
-
-        Leibniz<__<__<f, A>, C>, __<__<f, B>, C>> abLift = lift2();
-        Leibniz<__<__<f, B>, C>, __<__<f, B>, D>> cdLift = cd.lift();
-
-        return new Leibniz<__<__<f, A>, C>, __<__<f, B>, D>>() {
-          @Override public <f2> __<f2, __<__<f, B>, D>> subst(__<f2, __<__<f, A>, C>> fa) {
-            return cdLift.subst(abLift.subst(fa));
-          }
-        };
-      }
-    };
+  public final <C, D> Lift2Leibniz<A, C, B, D> lift2(Leibniz<C, D> cd) {
+    return new Lift2Leibniz<A, C, B, D>(this, cd);
   }
 
   /**
@@ -155,7 +155,7 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
    * @return the leibniz equality in the context of the specified type constructor.
    */
   public final <f, C, D> Leibniz<__<__<__<f, A>, C>, D>, __<__<__<f, B>, C>, D>> lift3() {
-    return Lift3.ofHkt(subst(new Lift3<>(Leibniz.<__<__<__<f, A>, C>, D>>refl()))).leib;
+    return Lift3.ofHkt(subst(new Lift3<>(Leibniz.<__<__<__<f, A>, C>, D>>refl()))).unlift3;
   }
 
   /**
@@ -169,22 +169,8 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
    * @param <F> the last type variable after substitution.
    * @return a factory to lift the leibniz instances into any type constructor.
    */
-  public final <C, D, E, F> Lift3ForAllF<A, C, E, B, D, F> lift3(Leibniz<C, D> cd, Leibniz<E, F> ef) {
-
-    return new Lift3ForAllF<A, C, E, B, D, F>() {
-      @Override public <f> Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, D>, F>> f() {
-        Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, C>, E>> abLift = lift3();
-        Leibniz<__<__<__<f, B>, C>, E>, __<__<__<f, B>, D>, E>> cdLift = cd.lift2();
-        Leibniz<__<__<__<f, B>, D>, E>, __<__<__<f, B>, D>, F>> efLift = ef.lift();
-
-        return new Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, D>, F>>() {
-          @Override public <f2> __<f2, __<__<__<f, B>, D>, F>> subst(__<f2, __<__<__<f, A>, C>, E>> fa) {
-            return efLift.subst(cdLift.subst(abLift.subst(fa)));
-          }
-        };
-      }
-    };
-
+  public final <C, D, E, F> Lift3Leibniz<A, C, E, B, D, F> lift3(Leibniz<C, D> cd, Leibniz<E, F> ef) {
+    return new Lift3Leibniz<A, C, E, B, D, F>(this, cd, ef);
   }
 
   /**
@@ -194,25 +180,48 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
   }
 
   /**
-   * Factory to lift leibniz instances into any type constructor.
+   * Type inference helper class:
+   * allow to lift two leibniz instances into any type constructor.
    *
    * @param <A> the before last type variable before substitution.
    * @param <C> the last type variable before substitution.
    * @param <B> the before last type variable after substitution.
    * @param <D> the last type variable after substitution.
    */
-  public interface Lift2ForAllF<A, C, B, D> {
+  public static final class Lift2Leibniz<A, C, B, D> {
+
+    private final Leibniz<A, B> ab;
+
+    private final Leibniz<C, D> cd;
+
+    Lift2Leibniz(Leibniz<A, B> ab, Leibniz<C, D> cd) {
+      this.ab = ab;
+      this.cd = cd;
+    }
 
     /**
-     * Lift leibniz instances into a type constructor.
+     * Lift two leibniz instances into a type constructor.
      *
      * @param <f> a type constructor witness.
      * @return the leibniz equalities in the context of the type constructor.
      */
-    <f> Leibniz<__<__<f, A>, C>, __<__<f, B>, D>> f();
+    public <f> Leibniz<__<__<f, A>, C>, __<__<f, B>, D>> lift() {
+
+      Leibniz<__<__<f, A>, C>, __<__<f, B>, C>> abLift = ab.lift2();
+      Leibniz<__<__<f, B>, C>, __<__<f, B>, D>> cdLift = cd.lift();
+
+      return new Leibniz<__<__<f, A>, C>, __<__<f, B>, D>>() {
+        @Override public <f2> __<f2, __<__<f, B>, D>> subst(__<f2, __<__<f, A>, C>> fa) {
+          return cdLift.subst(abLift.subst(fa));
+        }
+      };
+    }
   }
 
   /**
+   * Type inference helper class:
+   * allow to lift three leibniz instances into any type constructor.
+   *
    * @param <A> the antepenultimate type variable before substitution.
    * @param <C> the before last type variable before substitution.
    * @param <E> the last type variable before substitution.
@@ -220,27 +229,50 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
    * @param <D> the before last type variable after substitution.
    * @param <F> the last type variable after substitution.
    */
-  public interface Lift3ForAllF<A, C, E, B, D, F> {
+  public static final class Lift3Leibniz<A, C, E, B, D, F> {
+
+    private final Leibniz<A, B> ab;
+
+    private final Leibniz<C, D> cd;
+
+    private final Leibniz<E, F> ef;
+
+    Lift3Leibniz(Leibniz<A, B> ab, Leibniz<C, D> cd, Leibniz<E, F> ef) {
+      this.ab = ab;
+      this.cd = cd;
+      this.ef = ef;
+    }
 
     /**
-     * Lift leibniz instances into a type constructor.
+     * Lift three leibniz instances into a type constructor.
      *
      * @param <f> a type constructor witness.
      * @return the leibniz equalities in the context of the type constructor.
      */
-    <f> Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, D>, F>> f();
+    public <f> Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, D>, F>> lift() {
+
+      Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, C>, E>> abLift = ab.lift3();
+      Leibniz<__<__<__<f, B>, C>, E>, __<__<__<f, B>, D>, E>> cdLift = cd.lift2();
+      Leibniz<__<__<__<f, B>, D>, E>, __<__<__<f, B>, D>, F>> efLift = ef.lift();
+
+      return new Leibniz<__<__<__<f, A>, C>, E>, __<__<__<f, B>, D>, F>>() {
+        @Override public <f2> __<f2, __<__<__<f, B>, D>, F>> subst(__<f2, __<__<__<f, A>, C>, E>> fa) {
+          return efLift.subst(cdLift.subst(abLift.subst(fa)));
+        }
+      };
+    }
   }
 
-  private static class Id<A> implements __<Id.µ, A> {
+  private static class Coerce<A> implements __<Coerce.µ, A> {
 
-    final A run;
+    final A uncoerce;
 
-    Id(A run) {
-      this.run = run;
+    Coerce(A uncoerce) {
+      this.uncoerce = uncoerce;
     }
 
-    static <A> Id<A> ofHkt(__<µ, A> hkId) {
-      return (Id<A>) hkId;
+    static <A> Coerce<A> ofHkt(__<µ, A> hkId) {
+      return (Coerce<A>) hkId;
     }
 
     enum µ {}
@@ -263,10 +295,10 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
 
   private static class Lift<f, A, B> implements __3<Lift.µ, f, A, B> {
 
-    final Leibniz<__<f, A>, __<f, B>> leib;
+    final Leibniz<__<f, A>, __<f, B>> unlift;
 
-    Lift(Leibniz<__<f, A>, __<f, B>> leib) {
-      this.leib = leib;
+    Lift(Leibniz<__<f, A>, __<f, B>> unlift) {
+      this.unlift = unlift;
     }
 
     static <f, A, B> Lift<f, A, B> ofHkt(__<__<__<µ, f>, A>, B> hkLift) {
@@ -278,14 +310,14 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
 
   private static class Lift2<f, C, A, B> implements __4<Lift2.µ, f, C, A, B> {
 
-    final Leibniz<__<__<f, A>, C>, __<__<f, B>, C>> leib;
+    final Leibniz<__<__<f, A>, C>, __<__<f, B>, C>> unlift2;
 
-    Lift2(Leibniz<__<__<f, A>, C>, __<__<f, B>, C>> leib) {
-      this.leib = leib;
+    Lift2(Leibniz<__<__<f, A>, C>, __<__<f, B>, C>> unlift2) {
+      this.unlift2 = unlift2;
     }
 
-    static <f, C, A, B> Lift2<f, C, A, B> ofHkt(__<__<__<__<µ, f>, C>, A>, B> hkLift) {
-      return (Lift2<f, C, A, B>) hkLift;
+    static <f, C, A, B> Lift2<f, C, A, B> ofHkt(__<__<__<__<µ, f>, C>, A>, B> hkLift2) {
+      return (Lift2<f, C, A, B>) hkLift2;
     }
 
     enum µ {}
@@ -293,14 +325,14 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
 
   private static class Lift3<f, C, D, A, B> implements __5<Lift3.µ, f, C, D, A, B> {
 
-    final Leibniz<__<__<__<f, A>, C>, D>, __<__<__<f, B>, C>, D>> leib;
+    final Leibniz<__<__<__<f, A>, C>, D>, __<__<__<f, B>, C>, D>> unlift3;
 
-    Lift3(Leibniz<__<__<__<f, A>, C>, D>, __<__<__<f, B>, C>, D>> leib) {
-      this.leib = leib;
+    Lift3(Leibniz<__<__<__<f, A>, C>, D>, __<__<__<f, B>, C>, D>> unlift3) {
+      this.unlift3 = unlift3;
     }
 
-    static <f, C, D, A, B> Lift3<f, C, D, A, B> ofHkt(__<__<__<__<__<µ, f>, C>, D>, A>, B> hkLift) {
-      return (Lift3<f, C, D, A, B>) hkLift;
+    static <f, C, D, A, B> Lift3<f, C, D, A, B> ofHkt(__<__<__<__<__<µ, f>, C>, D>, A>, B> hkLift3) {
+      return (Lift3<f, C, D, A, B>) hkLift3;
     }
 
     enum µ {}
