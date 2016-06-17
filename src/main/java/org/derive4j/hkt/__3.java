@@ -12,4 +12,32 @@ public interface __3<f, A, B, C> extends __2<__<f, A>, B, C> {
   static <f, A, B, C> __3<f, A, B, C> coerce(__<__<__<f, A>, B>, C> fabc) {
     return (__3<f, A, B, C>) fabc;
   }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __<__<__<f, A>, B>, C>}  =:= {@code __3<f, A, B, C>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @param <A> the antepenultimate type variable
+   * @param <B> before last type variable.
+   * @param <C> last type variable.
+   * @return a leibniz instance witness of the type equality.
+   */
+  static <f, A, B, C> Leibniz<__<__<__<f, A>, B>, C>, __3<f, A, B, C>> eq__() {
+    return (Leibniz) Leibniz.refl();
+  }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __2<__<f, A>, B, C>}  =:= {@code __3<f, A, B, C>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @param <A> the antepenultimate type variable
+   * @param <B> before last type variable.
+   * @param <C> last type variable.
+   * @return a leibniz instance witness of the type equality.
+   */
+  static <f, A, B, C> Leibniz<__2<__<f, A>, B, C>, __3<f, A, B, C>> eq__2() {
+    return (Leibniz) Leibniz.refl();
+  }
 }

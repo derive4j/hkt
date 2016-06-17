@@ -13,4 +13,26 @@ public interface __4<f, A, B, C, D> extends __3<__<f, A>, B, C, D> {
   static <f, A, B, C, D> __4<f, A, B, C, D> coerce(__<__<__<__<f, A>, B>, C>, D> fabcd) {
     return (__4<f, A, B, C, D>) fabcd;
   }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __<__<__<__<f, A>, B>, C>, D>}  =:= {@code __4<f, A, B, C, D>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @return a leibniz instance witness of the type equality.
+   */
+  static <f, A, B, C, D> Leibniz<__<__<__<__<f, A>, B>, C>, D>, __4<f, A, B, C, D>> eq__() {
+    return (Leibniz) Leibniz.refl();
+  }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __3<__<f, A>, B, C, D>}  =:= {@code __4<f, A, B, C, D>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @return a leibniz instance witness of the type equality.
+   */
+  static <f, A, B, C, D> Leibniz<__3<__<f, A>, B, C, D>, __4<f, A, B, C, D>> eq__3() {
+    return (Leibniz) Leibniz.refl();
+  }
 }
