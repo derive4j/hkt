@@ -48,7 +48,9 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
   }
 
   /**
-   * Reify the higher kinded type equality: {@code __<__<µ, A>} =:= {@code Leibniz<A, B>}
+   * Reify the higher kinded type equality:<pre>
+   * {@code __<__<µ, A>, B>} =:= {@code Leibniz<A, B>}
+   * </pre>
    * that is guaranteed by the hkt type checker.
    *
    * @param <A> a type {@code A}.
