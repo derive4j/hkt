@@ -21,6 +21,7 @@ public interface __2<f, A, B> extends __<__<f, A>, B> {
    * @param <B> last type variable.
    * @return a leibniz instance witness of the type equality.
    */
+  @SuppressWarnings("unchecked")
   static <f, A, B> Leibniz<__<__<f, A>, B>, __2<f, A, B>> eq__() {
     return (Leibniz) Leibniz.refl();
   }

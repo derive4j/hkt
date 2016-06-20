@@ -8,8 +8,8 @@ package org.derive4j.hkt;
  * Leibniz instance are safe alternative to type casting
  * and are often use to implements generalized algebraic data types.
  *
- * @param <A> a type {@link #<A>}.
- * @param <B> a type {@link #<B>} which is guaranteed to be same as {@link #<A>}.
+ * @param <A> a type {@link A}.
+ * @param <B> a type {@link B} which is guaranteed to be same as {@link A}.
  * @see <a href="http://portal.acm.org/citation.cfm?id=583852.581494">Typing Dynamic Typing</a>
  * @see <a href="http://typelevel.org/blog/2014/09/20/higher_leibniz.html">Higher Leibniz</a>
  * @see <a href="https://github.com/ekmett/eq">Leibnizian type equality in Haskell</a>
@@ -39,8 +39,8 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
    * The cast safety is guaranteed by the hkt type checker.
    *
    * @param hkLeibniz the higher kinded leibniz.
-   * @param <A> a type {@link #<A>}.
-   * @param <B> a type {@link #<B>} which is guaranteed to be same as {@link #<A>}.
+   * @param <A> a type {@link A}.
+   * @param <B> a type {@link B} which is guaranteed to be same as {@link A}.
    * @return the same leibniz, casted to the corresponding concrete type.
    */
   public static <A, B> Leibniz<A, B> ofHkt(__<__<µ, A>, B> hkLeibniz) {
@@ -49,14 +49,15 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
 
   /**
    * Reify the higher kinded type equality:<pre>
-   * {@code __<__<µ, A>, B>} =:= {@code Leibniz<A, B>}
+   * {@code __<__<µ, A>, B} =:= {@code Leibniz<A, B}
    * </pre>
    * that is guaranteed by the hkt type checker.
    *
-   * @param <A> a type {@link #<A>}.
-   * @param <B> a type {@link #<B>} which is guaranteed to be same as {@link #<A>}.
+   * @param <A> a type {@link A}.
+   * @param <B> a type {@link B} which is guaranteed to be same as {@link A}.
    * @return a leibniz instance witness of the type equality.
    */
+  @SuppressWarnings("unchecked")
   public static <A, B> Leibniz<__<__<µ, A>, B>, Leibniz<A, B>> hkt() {
     return (Leibniz) refl();
   }
@@ -64,16 +65,16 @@ public abstract class Leibniz<A, B> implements __2<Leibniz.µ, A, B> {
   /**
    * Leibnizian equality states that two things are equal if you can substitute one for the other in all contexts.
    *
-   * @param fa a term whose type last parameter is {@link #<A>}.
+   * @param fa a term whose type last parameter is {@link A}.
    * @param <f> type constructor witness of {@code fa} type.
-   * @return the input value with {@link #<A>} substituted by {@link #<B>} in its type.
+   * @return the input value with {@link A} substituted by {@link B} in its type.
    */
   public abstract <f> __<f, B> subst(__<f, A> fa);
 
   /**
    * If two things are equal you can convert one to the other.
    *
-   * @param a a value of type {@link #<A>} that will be coerced into type {@link #<B>}.
+   * @param a a value of type {@link A} that will be coerced into type {@link B}.
    * @return the same value, after type coercion.
    */
   public final B coerce(A a) {

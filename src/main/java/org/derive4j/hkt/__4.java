@@ -21,6 +21,7 @@ public interface __4<f, A, B, C, D> extends __3<__<f, A>, B, C, D> {
    *
    * @return a leibniz instance witness of the type equality.
    */
+  @SuppressWarnings("unchecked")
   static <f, A, B, C, D> Leibniz<__<__<__<__<f, A>, B>, C>, D>, __4<f, A, B, C, D>> eq__() {
     return (Leibniz) Leibniz.refl();
   }
@@ -32,6 +33,7 @@ public interface __4<f, A, B, C, D> extends __3<__<f, A>, B, C, D> {
    *
    * @return a leibniz instance witness of the type equality.
    */
+  @SuppressWarnings("unchecked")
   static <f, A, B, C, D> Leibniz<__3<__<f, A>, B, C, D>, __4<f, A, B, C, D>> eq__3() {
     return (Leibniz) Leibniz.refl();
   }
