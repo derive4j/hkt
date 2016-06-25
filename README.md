@@ -15,11 +15,11 @@ Initial design was discussed in https://github.com/derive4j/hkt/issues/1
 <dependency>
   <groupId>org.derive4j.hkt</groupId>
   <artifactId>hkt</artifactId>
-  <version>0.1</version>
+  <version>0.2</version>
 </dependency>
 ```
 [search.maven]: http://search.maven.org/#search|ga|1|org.derive4j.hkt
 
 ## Gradle
 ```
-compile(group: 'org.derive4j.hkt', name: 'hkt', version: '0.1', ext: 'jar')
+compile(group: 'org.derive4j.hkt', name: 'hkt', version: '0.2', ext: 'jar')
