@@ -7,7 +7,7 @@ package org.derive4j.hkt;
  * @param <B> the 2nd type parameter of the type constructor
  * @param <C> the 3rd type parameter of the type constructor
  */
-public interface __3<f, A, B, C> extends __2<__<f, A>, B, C> {
+public interface __3<f, A, B, C> extends __<__<__<f, A>, B>, C> {
 
   static <f, A, B, C> __3<f, A, B, C> coerce(__<__<__<f, A>, B>, C> fabc) {
     return (__3<f, A, B, C>) fabc;

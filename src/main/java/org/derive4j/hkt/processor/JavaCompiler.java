@@ -1,6 +1,7 @@
 package org.derive4j.hkt.processor;
 
 import com.sun.source.tree.ClassTree;
+import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.util.SimpleTreeVisitor;
 import com.sun.source.util.TreePath;
@@ -27,36 +28,47 @@ final class JavaCompiler {
     }
 
     static final class OpenJdkSpecificApi implements JdkSpecificApi {
-        private Trees JTrees;
+        private final Trees JTrees;
         OpenJdkSpecificApi(ProcessingEnvironment processingEnv) {
             JTrees = Trees.instance(processingEnv);
         }
 
-        @Override public Stream<TypeElement> localTypes(TypeElement tel) {
+        @Override
+        public Stream<TypeElement> localTypes(TypeElement tel) {
             final List<? extends Element> enclosedElements = tel.getEnclosedElements();
 
-            return Stream.concat
-                (ElementFilter.constructorsIn(enclosedElements).stream()
-                    , ElementFilter.methodsIn(enclosedElements).stream()).flatMap
-                (exEl -> unNull(JTrees.getTree(exEl)).flatMap
-                    (methodTree -> unNull(JTrees.getPath(exEl)).flatMap
-                        (methodPath -> unNull(methodTree.getBody()).flatMap
-                            (methodBody -> unNull(methodBody.getStatements()).map
-                                (statements -> {
+            return Stream
+                .concat(ElementFilter.constructorsIn(enclosedElements).stream()
+                    , ElementFilter.methodsIn(enclosedElements).stream())
+                .flatMap(exEl -> unNull(JTrees.getTree(exEl))
+
+                    .flatMap(methodTree -> unNull(JTrees.getPath(exEl))
+                        .flatMap(methodPath -> unNull(methodTree.getBody())
+                            .flatMap(methodBody -> unNull(methodBody.getStatements())
+                                .map(statements -> {
                                     final List<TypeElement> typeElts = ElementFilter.typesIn(statements
                                         .stream()
-                                        .filter(st -> st.accept(new ClassTreeVisitor(), unit))
-                                        .flatMap(st ->
-                                            Opt.asStream(unNull(TreePath.getPath(methodPath, st)).flatMap
-                                                (path -> unNull(JTrees.getElement(path)))))
+                                        .filter(OpenJdkSpecificApi::isClassDecl)
+                                        .flatMap(cdl -> Opt
+                                            .asStream(unNull(TreePath.getPath(methodPath, cdl))
+                                                .flatMap(path -> unNull(JTrees.getElement(path)))))
                                         .collect(Collectors.toList()));
+
                                     return typeElts.stream();
                                 }))))
+
                     .orElseGet(Stream::empty));
+        }
+
+        private static <T extends StatementTree > Boolean isClassDecl(T st) {
+            return st.accept(ClassTreeVisitor.self, unit);
         }
 
         private static final class ClassTreeVisitor extends SimpleTreeVisitor<Boolean, Unit> {
             ClassTreeVisitor() {}
+
+            static final ClassTreeVisitor self = new ClassTreeVisitor();
+
             @Override
             public Boolean visitClass(ClassTree node, Unit __) { return true; }
             @Override
