@@ -7,10 +7,8 @@ import org.derive4j.hkt.Hkt;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
 import javax.lang.model.type.DeclaredType;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -19,6 +17,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.unmodifiableSet;
 import static org.derive4j.hkt.processor._HktConf.*;
 
+@SuppressWarnings("OptionalGetWithoutIsPresent")
 final class DataTypes {
     private DataTypes() {}
 
@@ -111,15 +110,42 @@ final class DataTypes {
     }
 
     @Data(@Derive(inClass = "_Valid"))
-    static abstract class Valid {
-        interface Cases<R> {
+    static abstract class Valid<E> {
+        interface Cases<E, R> {
             R Success(HktDecl hkt);
-            R Fail(HktDecl hkt, HkTypeError error);
+            R Fail(HktDecl hkt, E error);
         }
-        abstract <R> R match(Cases<R> cases);
+        abstract <R> R match(Cases<E, R> cases);
 
-        static Function<HkTypeError, Valid> Fail(HktDecl hktDecl) {
+        <EE> Valid<EE> map(Function<E, EE> f) {
+            return _Valid.<E>cases()
+
+                .Success(_Valid::<EE>Success)
+
+                .Fail((hkt, error) -> _Valid.Fail(hkt, f.apply(error)))
+
+                .apply(this);
+        }
+
+        static Function<HkTypeError, Valid<HkTypeError>> Fail(HktDecl hktDecl) {
             return error -> _Valid.Fail(hktDecl, error);
+        }
+
+        private static Valid<Stream<HkTypeError>> accum(Valid<Stream<HkTypeError>> acc, Valid<HkTypeError> v) {
+            return _Valid.<Stream<HkTypeError>>cases()
+
+                .Success(__ -> v.map(Stream::of))
+
+                .Fail((hkt, errors) -> _Valid.<HkTypeError>cases()
+                    .Success(__ -> acc)
+                    .Fail((__, error) -> _Valid.Fail(hkt, Stream.concat(errors, Stream.of(error))))
+                    .apply(v))
+
+                .apply(acc);
+        }
+
+        static Valid<Stream<HkTypeError>> accumulate(HktDecl hktDecl, Stream<Valid<HkTypeError>> valids) {
+            return _Valid.lazy(() -> valids.reduce(_Valid.Success(hktDecl), Valid::accum, (v, __) -> v));
         }
     }
 
@@ -154,6 +180,84 @@ final class DataTypes {
 
         static <A> IO<Optional<A>> sequenceOpt(Optional<IO<A>> oio) {
             return Opt.cata(oio, io -> io.map(Optional::of), () -> IO.unit(Optional.empty()));
+        }
+    }
+
+    @Data(@Derive(inClass = "_Action"))
+    static abstract class Action<T> {
+        interface Cases<R, T> {
+            R GenCode(String className, HktDecl hkt, Function<GenCode, T> id);
+            R ReportError(HktDecl hkt, Stream<HkTypeError> errors, Function<HkTypeError, T> id);
+        }
+        abstract <R> R match(Cases<R, T> cases);
+
+        static boolean classNameEq(Action<GenCode> a1, Action<GenCode> a2) {
+            return _Action.getClassName(a1).get().equals(_Action.getClassName(a2).get());
+        }
+
+        static final Comparator<Action<GenCode>> byClassName =
+            Comparator.comparing(ac -> _Action.getClassName(ac).get());
+
+        static <T> P2<Stream<Action<GenCode>>, Stream<Action<HkTypeError>>> partition(Stream<Action<T>> as) {
+            return as.reduce(_P2.of(Stream.empty(), Stream.empty())
+
+                , (pair, a) -> _Action.<T>cases()
+                    .GenCode((className, hkt, __) ->
+                        _P2.of(Stream.concat(pair._1(), Stream.of(_Action.GenCode(className, hkt))), pair._2()))
+
+                    .ReportError((hkt, errors, __) ->
+                        _P2.of(pair._1(), Stream.concat(pair._2(), Stream.of(_Action.ReportError(hkt, errors)))))
+
+                    .apply(a)
+
+                , (pair, __) -> pair);
+        }
+    }
+
+    static class StreamOps {
+
+        static <A> Optional<A> head(Stream<A> as) {
+            return as.findFirst();
+        }
+
+        static <A> P2<Stream<A>, Stream<A>> span(Stream<A> as, Function<A, Boolean> p) {
+            final List<A> buf = new ArrayList<>();
+
+            for (List<A> xs = as.collect(Collectors.toList()); !xs.isEmpty(); xs = xs.subList(1, xs.size()))
+                if (p.apply(xs.get(0)))
+                    buf.add(xs.get(0));
+                else
+                    return _P2.of(buf.stream(), xs.stream());
+
+            return _P2.of(buf.stream(), Stream.empty());
+        }
+
+        static <A> Stream<Stream<A>> group(Stream<A> as, BiFunction<A, A, Boolean> p) {
+            final List<A> las = as.collect(Collectors.toList());
+
+            if (las.isEmpty())
+                return Stream.empty();
+            else {
+                final P2<Stream<A>, Stream<A>> z =
+                    span(las.subList(1, las.size()).stream(), a -> p.apply(a, las.get(0)));
+                return Stream.concat(Stream.of(Stream.concat(Stream.of(las.get(0)), z._1())), group(z._2(), p));
+            }
+        }
+    }
+
+    @Data(@Derive(inClass = "_P2"))
+    static abstract class P2<A, B> {
+        interface Cases<A, B, R> {
+            R of(A _1, B _2);
+        }
+        abstract <R> R match(Cases<A, B, R> cases);
+
+        A _1() { return _P2.get_1(this); }
+
+        B _2() { return _P2.get_2(this); }
+
+        <C> P2<C, B> map1(Function<A, C> f) {
+            return _P2.of(f.apply(_1()), _2());
         }
     }
 

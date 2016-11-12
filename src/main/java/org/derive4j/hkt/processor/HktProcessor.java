@@ -40,7 +40,9 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.*;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.*;
+import javax.lang.model.util.ElementFilter;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.util.Arrays;
 import java.util.List;
@@ -59,7 +61,6 @@ import static org.derive4j.hkt.processor._HkTypeError.*;
 @SupportedAnnotationTypes("*")
 public final class HktProcessor extends AbstractProcessor {
 
-    private Filer Filer;
     private Types Types;
     private Elements Elts;
     private Messager Messager;
@@ -72,47 +73,37 @@ public final class HktProcessor extends AbstractProcessor {
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
 
-        Filer = processingEnv.getFiler();
         Types = processingEnv.getTypeUtils();
         Elts = processingEnv.getElementUtils();
-        GenCode = new GenCode(Elts, Types, Filer);
         Messager = processingEnv.getMessager();
         JdkSpecificApi = jdkSpecificApi(processingEnv);
 
         __Elt = Elts.getTypeElement(__.class.getCanonicalName());
+        GenCode = new GenCode(Elts, Types, processingEnv.getFiler(), __Elt);
     }
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-        if (!roundEnv.processingOver()) {
+        final Stream<TypeElement> allTypes = ElementFilter
+            .typesIn(roundEnv.getRootElements())
+            //.parallelStream()
+            .stream()
+            .flatMap(tel -> Stream.concat(Stream.of(tel), allInnerTypes(tel)));
 
-            final Stream<TypeElement> allTypes = ElementFilter
-                .typesIn(roundEnv.getRootElements())
-                //.parallelStream()
-                .stream()
-                .flatMap(tel -> Stream.concat(Stream.of(tel), allInnerTypes(tel)));
+        final Stream<HktDecl> targetTypes = allTypes.flatMap(this::asHktDecl);
 
-            final Stream<HktDecl> targetTypes = allTypes.flatMap(this::asHktDecl);
+        final Stream<Valid<Stream<HkTypeError>>> validations = targetTypes.map(this::checkHktType);
 
-            final Stream<Valid> validations = targetTypes.flatMap(this::checkHktType);
+        final P2<Stream<Stream<Action<GenCode>>>, Stream<Action<HkTypeError>>> actions = Action
+            .partition(validations.map(valid -> asAction(valid)))
+            .map1(as -> StreamOps.group(as.sorted(Action.byClassName), Action::classNameEq));
 
-            final Stream<IO<Unit>> effects = validations.map(_Valid.cases()
-                //.Success(GenCode::run)
-                .Fail(this::reportError)
-                .otherwise(IO.unit(Unit.unit)));
+        final Stream<IO<Unit>> effects = Stream.concat
+            (actions._1().map(GenCode::run), actions._2().map(this::reportErrors));
 
-            IO.unsafeRun(effects);
-        } else {
-            System.out.println("Ok, processing over");
-            System.out.println("Further elements " + roundEnv.getRootElements().size());
-        }
+        IO.unsafeRun(effects);
+
         return false;
-    }
-
-    static IO<Unit> test(HktDecl hktDecl) {
-        return hktDecl.match((typeConstructor, hktInterface, conf) -> IO.effect(() -> {
-            System.out.println("TypeElement : " + typeConstructor + "\nDeclaredType : " + hktInterface);
-        }));
     }
 
     private static Optional<JavaCompiler.JdkSpecificApi> jdkSpecificApi(ProcessingEnvironment processingEnv) {
@@ -138,6 +129,16 @@ public final class HktProcessor extends AbstractProcessor {
                 (allTypes.stream(), allTypes.stream().flatMap(this::allInnerTypes));
     }
 
+    private Action<?> asAction(Valid<Stream<HkTypeError>> valid) {
+        return _Valid.<Stream<HkTypeError>>cases().<Action<?>>
+
+            Success(hkt -> _Action.GenCode(GenCode.genClassName(hkt), hkt))
+
+            .Fail(_Action::ReportError)
+
+            .apply(valid);
+    }
+
     private Stream<HktDecl> asHktDecl(TypeElement tEl) {
         return tEl.getInterfaces().stream()
             .map(this::asHktInterface)
@@ -146,8 +147,8 @@ public final class HktProcessor extends AbstractProcessor {
             .map(hktInterface -> _HktDecl.of(tEl, hktInterface, hktConf(tEl)));
     }
 
-    private Stream<Valid> checkHktType(HktDecl hktDecl) {
-        return Stream.of(
+    private Valid<Stream<HkTypeError>> checkHktType(HktDecl hktDecl) {
+        return Valid.accumulate(hktDecl, Stream.of(
             checkHktInterfaceNotRawType(hktDecl),
             checkAtLeastOneTypeParameter(hktDecl),
             checkRightHktInterface(hktDecl),
@@ -155,22 +156,22 @@ public final class HktProcessor extends AbstractProcessor {
             checkTCWitness(hktDecl),
             checkNestedTCWitnessHasNoTypeParameter(hktDecl),
             checkNestedTCWitnessIsStaticFinal(hktDecl)
-        );
+        ));
     }
 
-    private Valid checkHktInterfaceNotRawType(HktDecl hktDecl) {
+    private Valid<HkTypeError> checkHktInterfaceNotRawType(HktDecl hktDecl) {
         return _HktDecl.getHktInterface(hktDecl).getTypeArguments().isEmpty()
             ? _Valid.Fail(hktDecl, HKTInterfaceDeclIsRawType())
             : _Valid.Success(hktDecl);
     }
 
-    private Valid checkAtLeastOneTypeParameter(HktDecl hktDecl) {
+    private Valid<HkTypeError> checkAtLeastOneTypeParameter(HktDecl hktDecl) {
         return _HktDecl.getTypeConstructor(hktDecl).getTypeParameters().isEmpty()
             ? _Valid.Fail(hktDecl, HKTypesNeedAtLeastOneTypeParameter())
             : _Valid.Success(hktDecl);
     }
 
-    private Valid checkRightHktInterface(HktDecl hktDecl) {
+    private Valid<HkTypeError> checkRightHktInterface(HktDecl hktDecl) {
         return Visitors.asTypeElement.visit(_HktDecl.getHktInterface(hktDecl).asElement())
             .filter(hktInterfaceElement ->
                 _HktDecl.getTypeConstructor(hktDecl).getTypeParameters().size() + 1
@@ -179,7 +180,7 @@ public final class HktProcessor extends AbstractProcessor {
             .orElse(_Valid.Success(hktDecl));
     }
 
-    private Valid checkTypeParameters(HktDecl hktDecl) {
+    private Valid<HkTypeError> checkTypeParameters(HktDecl hktDecl) {
         final List<? extends TypeParameterElement> typeParameters =
             _HktDecl.getTypeConstructor(hktDecl).getTypeParameters();
         final List<? extends TypeMirror> typeArguments =
@@ -196,7 +197,7 @@ public final class HktProcessor extends AbstractProcessor {
             : _Valid.Fail(hktDecl, NotMatchingTypeParams(typeParamsInError));
     }
 
-    private Valid checkTCWitness(HktDecl hktDecl) {
+    private Valid<HkTypeError> checkTCWitness(HktDecl hktDecl) {
         return _HktDecl
             .getHktInterface(hktDecl).getTypeArguments().stream().findFirst()
             .flatMap(witnessTm -> asValidTCWitness(_HktDecl.getTypeConstructor(hktDecl), witnessTm))
@@ -214,7 +215,7 @@ public final class HktProcessor extends AbstractProcessor {
                     || witness.asElement().getEnclosingElement().equals(typeConstructor));
     }
 
-    private Valid checkNestedTCWitnessHasNoTypeParameter(HktDecl hktDecl) {
+    private Valid<HkTypeError> checkNestedTCWitnessHasNoTypeParameter(HktDecl hktDecl) {
         return _HktDecl
             .getHktInterface(hktDecl).getTypeArguments().stream().findFirst()
             .flatMap(witnessTm ->
@@ -227,7 +228,7 @@ public final class HktProcessor extends AbstractProcessor {
             .orElse(_Valid.Success(hktDecl));
     }
 
-    private Valid checkNestedTCWitnessIsStaticFinal(HktDecl hktDecl) {
+    private Valid<HkTypeError> checkNestedTCWitnessIsStaticFinal(HktDecl hktDecl) {
         final TypeElement typeConstructor = _HktDecl.getTypeConstructor(hktDecl);
 
         return _HktDecl
@@ -250,11 +251,14 @@ public final class HktProcessor extends AbstractProcessor {
             .filter(declaredType -> Types.isSubtype(declaredType, Types.erasure(__Elt.asType())));
     }
 
-    private IO<Unit> reportError(HktDecl hkt, HkTypeError error) {
+    @SuppressWarnings("OptionalGetWithoutIsPresent")
+    private IO<Unit> reportErrors(Action<HkTypeError> action) {
+        final HktDecl hkt = _Action.getHkt(action);
+        final Stream<HkTypeError> errors = _Action.getErrors(action).get();
         final TypeElement typeElement = _HktDecl.getTypeConstructor(hkt);
         final HktConf conf = _HktDecl.getConf(hkt);
 
-        return _HkTypeError.cases()
+        final Stream<IO<Unit>> effects = errors.map(_HkTypeError.cases()
             .HKTInterfaceDeclIsRawType(IO.effect(() -> Messager.printMessage
                 (Diagnostic.Kind.ERROR, hKTInterfaceDeclIsRawTypeErrorMessage(typeElement, conf), typeElement)))
 
@@ -265,7 +269,7 @@ public final class HktProcessor extends AbstractProcessor {
                 (Diagnostic.Kind.ERROR, wrongHKTInterfaceErrorMessage(typeElement, conf), typeElement)))
 
             .NotMatchingTypeParams(typeParameterElements -> IO.effect(() ->
-                typeParameterElements.stream().forEach(typeParameterElement -> Messager.printMessage
+                typeParameterElements.forEach(typeParameterElement -> Messager.printMessage
                     (Diagnostic.Kind.ERROR, notMatchingTypeParamErrorMessage(typeElement, conf), typeParameterElement))))
 
             .TCWitnessMustBeNestedClassOrClass(IO.effect(() -> Messager.printMessage
@@ -275,9 +279,9 @@ public final class HktProcessor extends AbstractProcessor {
                 (Diagnostic.Kind.ERROR, nestedTCWitnessMustBeSimpleTypeErrorMessage(), tcWitnessElement)))
 
             .NestedTCWitnessMustBeStaticFinal(tcWitnessElement -> IO.effect(() -> Messager.printMessage
-                (Diagnostic.Kind.ERROR, nestedTCWitnessMustBePublicStaticErrorMessage(typeElement), tcWitnessElement)))
+                (Diagnostic.Kind.ERROR, nestedTCWitnessMustBePublicStaticErrorMessage(typeElement), tcWitnessElement))));
 
-            .apply(error);
+        return IO.effect(() -> IO.unsafeRun(effects));
     }
 
     private String hKTInterfaceDeclIsRawTypeErrorMessage(TypeElement tel, HktConf conf) {
@@ -397,7 +401,6 @@ public final class HktProcessor extends AbstractProcessor {
     private static Optional<HktConf> selfHktConf(Element elt) {
         return Opt.unNull(elt.getAnnotation(Hkt.class)).map(HktConf::from);
     }
-
 
 }
 

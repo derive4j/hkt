@@ -2,60 +2,74 @@ package org.derive4j.hkt.processor;
 
 import com.squareup.javapoet.*;
 import org.derive4j.hkt.Hkt;
-import org.derive4j.hkt.__;
-import org.derive4j.hkt.processor.DataTypes.HktDecl;
-import org.derive4j.hkt.processor.DataTypes.IO;
-import org.derive4j.hkt.processor.DataTypes.Unit;
+import org.derive4j.hkt.processor.DataTypes.*;
 
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import javax.tools.FileObject;
-import javax.tools.StandardLocation;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+@SuppressWarnings("OptionalGetWithoutIsPresent")
 final class GenCode {
     private final Elements Elts;
     private final Types Types;
     private final Filer Filer;
+    private final TypeElement __Elt;
 
-    GenCode(Elements elts, Types types, Filer filer) {
+    GenCode(Elements elts, Types types, Filer filer, TypeElement elt) {
         Elts = elts;
         Types = types;
         Filer = filer;
+        __Elt = elt;
     }
 
-    IO<Unit> run(HktDecl hktDecl) {
-        final String genClassName = genClassName(hktDecl);
+    IO<Unit> run(Stream<Action<GenCode>> actions) {
+        final List<Action<GenCode>> actionList = actions.collect(Collectors.toList());
 
-        return genClassFile(genClassName)
+        if (actionList.isEmpty()) return IO.unit(Unit.unit);
+        else {
+            final HktDecl firstHkt = _Action.getHkt(actionList.get(0));
+            final String genClassName = genClassName(firstHkt);
+            final PackageElement genClassPkg = Elts.getPackageOf(_HktDecl.getTypeConstructor(firstHkt));
+            final TypeSpec genClass = genClass(firstHkt);
 
-            .bind(ofo -> IO.sequenceOpt(ofo.map(this::delete))
+            final TypeSpec classToGen = actionList
+                .subList(1, actionList.size())
+                .stream()
+                .reduce(genClass
+                    , this::completeClass
+                    , (cl, __) -> cl);
 
-                .bind(ou -> createClass(hktDecl, genClass(hktDecl))));
+            return createClass(genClassPkg, Opt.cata(readGenClass(genClassName)
+                , tel -> enrichClass(tel, classToGen)
+                , () -> classToGen));
+        }
     }
 
-    private IO<Unit> createClass(HktDecl hktDecl, TypeSpec genClass) {
-        return hktDecl.match((typeConstructor, hktInterface, conf) -> () -> {
+    String genClassName(HktDecl hktDecl) {
+        return hktDecl.match((typeConstructor, hktInterface, conf) ->
+            Elts.getPackageOf(typeConstructor).getQualifiedName() + "." + _HktConf.getClassName(conf));
+    }
 
-            System.out.println("Creating class");
-
-            final String pkgName =
-                Elts.getPackageOf(typeConstructor).getQualifiedName().toString();
-
-            JavaFile.builder(pkgName, genClass).build().writeTo(Filer);
+    private IO<Unit> createClass(PackageElement pkg, TypeSpec genClass) {
+        return () -> {
+            JavaFile
+                .builder(pkg.getQualifiedName().toString(), genClass)
+                .build()
+                .writeTo(Filer);
 
             return Unit.unit;
-        });
+        };
     }
 
     private TypeSpec genClass(HktDecl hktDecl) {
@@ -88,64 +102,68 @@ final class GenCode {
 
             final String argName = "hkt";
 
-            final DeclaredType returnType =
-                Types.getDeclaredType(typeConstructor, typeParameters.stream()
+            final TypeName returnType = TypeName.get
+                (Types.getDeclaredType(typeConstructor, typeParameters.stream()
                     .map(TypeParameterElement::asType)
-                    .toArray(TypeMirror[]::new));
+                    .toArray(TypeMirror[]::new)));
 
-            return MethodSpec
-                .methodBuilder(methodName)
-                .addModifiers(Modifier.STATIC)
-                .addTypeVariables(typeParameters.stream().map(TypeVariableName::get).collect(Collectors.toSet()))
-                .returns(TypeName.get(returnType))
-                .addParameter(argType, argName, Modifier.FINAL)
-                .addCode("return ($L) $N;\n", returnType.toString(), argName)
-                .build();
+            return buildCoerceMethod(methodName, typeParameters, argType, argName, returnType);
         });
     }
 
-    private String genClassName(HktDecl hktDecl) {
-        return hktDecl.match((typeConstructor, hktInterface, conf) ->
-            Elts.getPackageOf(typeConstructor).getQualifiedName() + "." + _HktConf.getClassName(conf));
+    private static MethodSpec buildCoerceMethod(String methodName
+        , List<? extends TypeParameterElement> typeParameters
+        , TypeName argType
+        , String argName
+        , TypeName returnType) {
+        return MethodSpec
+            .methodBuilder(methodName)
+            .addModifiers(Modifier.STATIC)
+            .addTypeVariables(typeParameters.stream().map(TypeVariableName::get).collect(Collectors.toSet()))
+            .returns(returnType)
+            .addParameter(argType, argName, Modifier.FINAL)
+            .addCode("return ($L) $N;\n", returnType.toString(), argName)
+            .build();
     }
 
-//    private IO<Optional<?>> genClassFile2(String genClassName) {
-//        return () -> {
-//          try {
-//              return Optional.of(Elts.getTypeElement(genClassName));
-//          }
-//        };
-//    }
-
-    private IO<Optional<FileObject>> genClassFile(String genClassName) {
-        return () -> {
-
-            System.out.println("Reading File : " + genClassName);
-
-            final FileObject fileObject =
-                Filer.getResource(StandardLocation.SOURCE_OUTPUT, "", genClassName);
-            try {
-                fileObject.getCharContent(true); // force loading (detection) of the file
-                return Optional.of(fileObject);
-            } catch (FileNotFoundException e) {
-                return Optional.empty();
-            }
-        };
+    private TypeSpec completeClass(TypeSpec spec, Action<GenCode> action) {
+        return spec.toBuilder().addMethod(genMethod(_Action.getHkt(action))).build();
     }
 
-    private IO<Unit> delete(FileObject genClass) {
-        return () -> {
+    private TypeSpec enrichClass(TypeElement elt, TypeSpec spec) {
+        final Stream<MethodSpec> methods = ElementFilter
+            .methodsIn(elt.getEnclosedElements())
+            .stream()
+            .map(method -> {
+                final String methodName = method.getSimpleName().toString();
+                final List<? extends TypeParameterElement> typeParameters = method.getTypeParameters();
+                final P2<String, TypeName> arg = method
+                    .getParameters()
+                    .stream()
+                    .reduce(_P2.of("", TypeName.VOID)
+                        , (__, p) -> _P2.of(p.getSimpleName().toString(), TypeName.get(p.asType()))
+                        , (pair, __) -> pair);
+                final TypeName returnType = TypeName.get(method.getReturnType());
 
-            System.out.println("Deleting file");
+                return buildCoerceMethod(methodName, typeParameters, arg._2(), arg._1(), returnType);
+            })
+            .filter(ms1 -> spec.methodSpecs.stream().noneMatch(ms2 -> methodEq(ms1, ms2)));
 
-            if (genClass.delete()) return Unit.unit;
-            else throw new IOException("Could not delete a generated class");
-        };
+        return spec
+            .toBuilder()
+            .addMethods(methods.collect(Collectors.toList()))
+            .build();
+    }
+
+    private static boolean methodEq(MethodSpec m1, MethodSpec m2) {
+        return m1.name.equals(m2.name) && m1.returnType.equals(m2.returnType);
+    }
+
+    private Optional<TypeElement> readGenClass(String genClassName) {
+        return Opt.unNull(Elts.getTypeElement(genClassName));
     }
 
     private DeclaredType curriedHktInterface(DeclaredType hktInterface) {
-        final TypeElement __Elt = Elts.getTypeElement(__.class.getCanonicalName());
-
         final List<? extends TypeMirror> targs = hktInterface.getTypeArguments();
 
         final DeclaredType startType = Types.getDeclaredType(__Elt, targs.get(0), targs.get(1));
