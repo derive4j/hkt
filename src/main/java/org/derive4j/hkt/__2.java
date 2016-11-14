@@ -11,4 +11,18 @@ public interface __2<f, A, B> extends __<__<f, A>, B> {
   static <f, A, B> __2<f, A, B> coerce(__<__<f, A>, B> fab) {
     return (__2<f, A, B>) fab;
   }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __2<f, A, B>  =:= __<__<f, A>, B>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @param <A> before last type variable.
+   * @param <B> last type variable.
+   * @return a leibniz instance witness of the type equality.
+   */
+  @SuppressWarnings("unchecked")
+  static <f, A, B> Leibniz<__<__<f, A>, B>, __2<f, A, B>> eq__() {
+    return (Leibniz) Leibniz.refl();
+  }
 }
