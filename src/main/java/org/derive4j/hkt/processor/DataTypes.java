@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import org.derive4j.Data;
 import org.derive4j.Derive;
-import org.derive4j.hkt.Hkt;
+import org.derive4j.hkt.HktConfig;
 
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
@@ -51,10 +51,10 @@ final class DataTypes {
     abstract static class HktConf {
         interface Case<R> {
             R Conf(String className
-                , Hkt.Visibility visibility
+                , HktConfig.Visibility visibility
                 , String coerceMethodTemplate
                 , String witnessTypeName
-                , Set<Hkt.Generator> codeGenerator);
+                , Set<HktConfig.Generator> codeGenerator);
         }
 
         abstract <R> R match(Case<R> Config);
@@ -72,22 +72,22 @@ final class DataTypes {
                 .apply(other);
         }
 
-        static HktConf from(Hkt hkt) {
-            return Conf(hkt.generatedIn()
-                , hkt.withVisibility()
-                , hkt.methodNames()
-                , hkt.witnessTypeName()
-                , toSet(hkt.delegateTo()));
+        static HktConf from(HktConfig hktConfig) {
+            return Conf(hktConfig.generatedIn()
+                , hktConfig.withVisibility()
+                , hktConfig.methodNames()
+                , hktConfig.witnessTypeName()
+                , toSet(hktConfig.delegateTo()));
         }
 
-        private static final Hkt defaultHkt = defaultConf.class.getAnnotation(Hkt.class);
+        private static final HktConfig defaultHktConfig = defaultConf.class.getAnnotation(HktConfig.class);
 
-        static final HktConf defaultConfig = HktConf.from(defaultHkt);
+        static final HktConf defaultConfig = HktConf.from(defaultHktConfig);
 
-        @Hkt
+        @HktConfig
         private enum defaultConf {}
 
-        private static Set<Hkt.Generator> toSet(Hkt.Generator[] gens) {
+        private static Set<HktConfig.Generator> toSet(HktConfig.Generator[] gens) {
             return unmodifiableSet(Arrays.stream(gens).collect(Collectors.toSet()));
         }
     }

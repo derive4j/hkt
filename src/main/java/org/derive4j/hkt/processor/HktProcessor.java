@@ -32,7 +32,7 @@ package org.derive4j.hkt.processor;
 import com.google.auto.service.AutoService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import org.derive4j.hkt.Hkt;
+import org.derive4j.hkt.HktConfig;
 import org.derive4j.hkt.__;
 import org.derive4j.hkt.processor.DataTypes.*;
 import org.derive4j.hkt.processor.JavaCompiler.OpenJdkSpecificApi;
@@ -405,7 +405,7 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
     private static Optional<HktConf> selfHktConf(Element elt) {
-        return Opt.unNull(elt.getAnnotation(Hkt.class)).map(HktConf::from);
+        return Opt.unNull(elt.getAnnotation(HktConfig.class)).map(HktConf::from);
     }
 
 }

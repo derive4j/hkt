@@ -1,7 +1,7 @@
 package org.derive4j.hkt.processor;
 
 import com.squareup.javapoet.*;
-import org.derive4j.hkt.Hkt;
+import org.derive4j.hkt.HktConfig;
 import org.derive4j.hkt.processor.DataTypes.*;
 
 import javax.annotation.processing.Filer;
@@ -75,7 +75,7 @@ final class GenCode {
     private TypeSpec genClass(HktDecl hktDecl) {
         return hktDecl.match((typeConstructor, hktInterface, conf) -> {
             final boolean isPublic =
-                _HktConf.getVisibility(conf) == Hkt.Visibility.Same
+                _HktConf.getVisibility(conf) == HktConfig.Visibility.Same
                     && typeConstructor.getModifiers().stream().anyMatch(m -> m == Modifier.PUBLIC);
 
             final Modifier[] modifiers = isPublic

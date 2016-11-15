@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
  */
 @Target({ElementType.PACKAGE, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Hkt {
+public @interface HktConfig {
 
   /**
    * All coerce methods for a given package will be generated in a class with that name.
