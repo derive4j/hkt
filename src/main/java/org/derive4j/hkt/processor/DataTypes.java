@@ -53,21 +53,19 @@ final class DataTypes {
             R Conf(String className
                 , HktConfig.Visibility visibility
                 , String coerceMethodTemplate
-                , String witnessTypeName
-                , Set<HktConfig.Generator> codeGenerator);
+                , String witnessTypeName);
         }
 
         abstract <R> R match(Case<R> Config);
 
         HktConf mergeWith(HktConf other) {
             return _HktConf.cases()
-                .Conf((ocn, ov, omt, own, ocg) ->
+                .Conf((ocn, ov, omt, own) ->
 
                     Conf( ocn.equals(getClassName(defaultConfig)) ? getClassName(this) : ocn
                         , ov == getVisibility(defaultConfig) ? getVisibility(this) : ov
                         , omt.equals(getCoerceMethodTemplate(defaultConfig)) ? getCoerceMethodTemplate(this) : omt
-                        , own.equals(getWitnessTypeName(defaultConfig)) ? getWitnessTypeName(this) : own
-                        , ocg.equals(getCodeGenerator(defaultConfig)) ? getCodeGenerator(this) : ocg))
+                        , own.equals(getWitnessTypeName(defaultConfig)) ? getWitnessTypeName(this) : own))
 
                 .apply(other);
         }
@@ -76,8 +74,7 @@ final class DataTypes {
             return Conf(hktConfig.generatedIn()
                 , hktConfig.withVisibility()
                 , hktConfig.methodNames()
-                , hktConfig.witnessTypeName()
-                , toSet(hktConfig.delegateTo()));
+                , hktConfig.witnessTypeName());
         }
 
         private static final HktConfig defaultHktConfig = defaultConf.class.getAnnotation(HktConfig.class);
@@ -86,10 +83,6 @@ final class DataTypes {
 
         @HktConfig
         private enum defaultConf {}
-
-        private static Set<HktConfig.Generator> toSet(HktConfig.Generator[] gens) {
-            return unmodifiableSet(Arrays.stream(gens).collect(Collectors.toSet()));
-        }
     }
 
     static final class Opt {

@@ -40,14 +40,4 @@ public @interface HktConfig {
    */
   String witnessTypeName() default "µ";
 
-  enum Generator {
-    derive4j;
-  }
-
-  /**
-   * A list of generators that should handle generation of the coerce method instead of the hkt processor,
-   * if a given class is annotated for that processor.
-   */
-  Generator[] delegateTo() default {Generator.derive4j};
-
 }
