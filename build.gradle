@@ -33,13 +33,12 @@ repositories {
 
 ext {
   isSnapshot = true
-  hktBaseVersion = '0.2'
+  hktBaseVersion = '0.3'
   hktVersion = hktBaseVersion + (isSnapshot ? '-SNAPSHOT' : '')
 
   derive4jVersion = '0.9.1'
   autoService = 'com.google.auto.service:auto-service:1.0-rc2'
   javaPoet = "com.squareup:javapoet:1.7.0"
-  javaParser = "com.github.javaparser:javaparser-core:2.5.1"
 }
 
 
@@ -59,7 +58,6 @@ dependencies {
   apt autoService
 
   compile javaPoet
-  compile javaParser
 
   testCompile 'junit:junit:4.12'
   testCompile 'com.google.testing.compile:compile-testing:0.8'
