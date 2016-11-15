@@ -1,5 +1,7 @@
 package org.derive4j.hkt.processor;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.derive4j.Data;
 import org.derive4j.Derive;
 import org.derive4j.hkt.Hkt;
@@ -15,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
+import static org.derive4j.hkt.processor.DataTypes.Unit.unit;
 import static org.derive4j.hkt.processor._HktConf.*;
 
 @SuppressWarnings("OptionalGetWithoutIsPresent")
@@ -151,7 +154,7 @@ final class DataTypes {
 
     @FunctionalInterface
     interface IO<A> {
-        A run() throws Throwable;
+        A run() throws IOException;
 
         default <B> IO<B> map(Function<A, B> f) {
             return bind(f.andThen(IO::unit));
@@ -164,18 +167,25 @@ final class DataTypes {
         static <A> IO<A> unit(A a) { return () -> a; }
 
         static IO<Unit> effect(Runnable eff) {
-            return () -> { eff.run(); return Unit.unit; };
+            return () -> { eff.run(); return unit; };
         }
 
-        static <A> Unit unsafeRun(Stream<IO<A>> ios) {
-            ios.forEach(io -> {
+        static <A> IO<Unit> sequenceStream_(Stream<IO<A>> ios) {
+            return () -> {
                 try {
-                    io.run();
-                } catch (Throwable throwable) {
-                    throw new RuntimeException(throwable);
+                    ios.forEachOrdered(io -> {
+                        try {
+                            io.run();
+                        } catch (IOException ioEx) {
+                            throw new UncheckedIOException(ioEx);
+                        }
+                    });
                 }
-            });
-            return Unit.unit;
+                catch (UncheckedIOException e) {
+                    throw e.getCause();
+                }
+                return unit;
+            };
         }
 
         static <A> IO<Optional<A>> sequenceOpt(Optional<IO<A>> oio) {

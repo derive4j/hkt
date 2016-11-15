@@ -30,6 +30,8 @@
 package org.derive4j.hkt.processor;
 
 import com.google.auto.service.AutoService;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.derive4j.hkt.Hkt;
 import org.derive4j.hkt.__;
 import org.derive4j.hkt.processor.DataTypes.*;
@@ -98,10 +100,14 @@ public final class HktProcessor extends AbstractProcessor {
             .partition(validations.map(valid -> asAction(valid)))
             .map1(as -> StreamOps.group(as.sorted(Action.byClassName), Action::classNameEq));
 
-        final Stream<IO<Unit>> effects = Stream.concat
-            (actions._1().map(GenCode::run), actions._2().map(this::reportErrors));
+        final IO<Unit> effects = IO.sequenceStream_(Stream.concat
+            (actions._1().map(GenCode::run), actions._2().map(this::reportErrors)));
 
-        IO.unsafeRun(effects);
+        try {
+            effects.run();
+        } catch (IOException ioEx) {
+            throw new UncheckedIOException(ioEx);
+        }
 
         return false;
     }
@@ -281,7 +287,7 @@ public final class HktProcessor extends AbstractProcessor {
             .NestedTCWitnessMustBeStaticFinal(tcWitnessElement -> IO.effect(() -> Messager.printMessage
                 (Diagnostic.Kind.ERROR, nestedTCWitnessMustBePublicStaticErrorMessage(typeElement), tcWitnessElement))));
 
-        return IO.effect(() -> IO.unsafeRun(effects));
+        return IO.sequenceStream_(effects);
     }
 
     private String hKTInterfaceDeclIsRawTypeErrorMessage(TypeElement tel, HktConf conf) {
