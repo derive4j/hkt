@@ -2,23 +2,27 @@ package org.derive4j.hkt.processor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.type.DeclaredType;
 import org.derive4j.Data;
 import org.derive4j.Derive;
 import org.derive4j.hkt.HktConfig;
 
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.TypeParameterElement;
-import javax.lang.model.type.DeclaredType;
-import java.util.*;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.Collections.unmodifiableSet;
+import static java.util.stream.Collectors.toList;
 import static org.derive4j.hkt.processor.DataTypes.Unit.unit;
-import static org.derive4j.hkt.processor._HktConf.*;
+import static org.derive4j.hkt.processor._HktConf.Conf;
+import static org.derive4j.hkt.processor._HktConf.getClassName;
+import static org.derive4j.hkt.processor._HktConf.getCoerceMethodTemplate;
+import static org.derive4j.hkt.processor._HktConf.getVisibility;
+import static org.derive4j.hkt.processor._HktConf.getWitnessTypeName;
 
 @SuppressWarnings("OptionalGetWithoutIsPresent")
 final class DataTypes {
@@ -140,14 +144,36 @@ final class DataTypes {
                 .apply(acc);
         }
 
-        static Valid<Stream<HkTypeError>> accumulate(HktDecl hktDecl, Stream<Valid<HkTypeError>> valids) {
-            return _Valid.lazy(() -> valids.reduce(_Valid.Success(hktDecl), Valid::accum, (v, __) -> v));
+        static Valid<List<HkTypeError>> accumulate(HktDecl hktDecl, Stream<Optional<HkTypeError>> valids) {
+            List<HkTypeError> errors = valids.flatMap(o -> o.map(Stream::of).orElseGet(Stream::empty)).collect(toList());
+            return errors.isEmpty() ? _Valid.Success(hktDecl) : _Valid.Fail(hktDecl, errors);
+        }
+
+        static <E> P2<List<HktDecl>, List<P2<HktDecl, E>>> partition(Stream<Valid<E>> validStream) {
+            ArrayList<HktDecl> successes = new ArrayList<>();
+            ArrayList<P2<HktDecl, E>> failures = new ArrayList<>();
+
+            IO.sequenceStream_(
+                validStream.map(_Valid.<E>cases()
+                    .Success(hktDecl -> IO.effect(() -> successes.add(hktDecl)))
+                    .Fail((hkt, error) -> IO.effect(() -> failures.add(_P2.of(hkt, error)))))
+            ).runUnchecked();
+
+            return _P2.of(successes, failures);
         }
     }
 
     @FunctionalInterface
     interface IO<A> {
         A run() throws IOException;
+
+        default A runUnchecked() throws UncheckedIOException {
+            try {
+                return run();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
 
         default <B> IO<B> map(Function<A, B> f) {
             return bind(f.andThen(IO::unit));
@@ -167,11 +193,7 @@ final class DataTypes {
             return () -> {
                 try {
                     ios.forEachOrdered(io -> {
-                        try {
-                            io.run();
-                        } catch (IOException ioEx) {
-                            throw new UncheckedIOException(ioEx);
-                        }
+                        io.runUnchecked();
                     });
                 }
                 catch (UncheckedIOException e) {
@@ -183,68 +205,6 @@ final class DataTypes {
 
         static <A> IO<Optional<A>> sequenceOpt(Optional<IO<A>> oio) {
             return Opt.cata(oio, io -> io.map(Optional::of), () -> IO.unit(Optional.empty()));
-        }
-    }
-
-    @Data(@Derive(inClass = "_Action"))
-    static abstract class Action<T> {
-        interface Cases<R, T> {
-            R GenCode(String className, HktDecl hkt, Function<GenCode, T> id);
-            R ReportError(HktDecl hkt, Stream<HkTypeError> errors, Function<HkTypeError, T> id);
-        }
-        abstract <R> R match(Cases<R, T> cases);
-
-        static boolean classNameEq(Action<GenCode> a1, Action<GenCode> a2) {
-            return _Action.getClassName(a1).get().equals(_Action.getClassName(a2).get());
-        }
-
-        static final Comparator<Action<GenCode>> byClassName =
-            Comparator.comparing(ac -> _Action.getClassName(ac).get());
-
-        static <T> P2<Stream<Action<GenCode>>, Stream<Action<HkTypeError>>> partition(Stream<Action<T>> as) {
-            return as.reduce(_P2.of(Stream.empty(), Stream.empty())
-
-                , (pair, a) -> _Action.<T>cases()
-                    .GenCode((className, hkt, __) ->
-                        _P2.of(Stream.concat(pair._1(), Stream.of(_Action.GenCode(className, hkt))), pair._2()))
-
-                    .ReportError((hkt, errors, __) ->
-                        _P2.of(pair._1(), Stream.concat(pair._2(), Stream.of(_Action.ReportError(hkt, errors)))))
-
-                    .apply(a)
-
-                , (pair, __) -> pair);
-        }
-    }
-
-    static class StreamOps {
-
-        static <A> Optional<A> head(Stream<A> as) {
-            return as.findFirst();
-        }
-
-        static <A> P2<Stream<A>, Stream<A>> span(Stream<A> as, Function<A, Boolean> p) {
-            final List<A> buf = new ArrayList<>();
-
-            for (List<A> xs = as.collect(Collectors.toList()); !xs.isEmpty(); xs = xs.subList(1, xs.size()))
-                if (p.apply(xs.get(0)))
-                    buf.add(xs.get(0));
-                else
-                    return _P2.of(buf.stream(), xs.stream());
-
-            return _P2.of(buf.stream(), Stream.empty());
-        }
-
-        static <A> Stream<Stream<A>> group(Stream<A> as, BiFunction<A, A, Boolean> p) {
-            final List<A> las = as.collect(Collectors.toList());
-
-            if (las.isEmpty())
-                return Stream.empty();
-            else {
-                final P2<Stream<A>, Stream<A>> z =
-                    span(las.subList(1, las.size()).stream(), a -> p.apply(a, las.get(0)));
-                return Stream.concat(Stream.of(Stream.concat(Stream.of(las.get(0)), z._1())), group(z._2(), p));
-            }
         }
     }
 

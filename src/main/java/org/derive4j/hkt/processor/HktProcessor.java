@@ -30,8 +30,7 @@
 package org.derive4j.hkt.processor;
 
 import com.google.auto.service.AutoService;
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.Map;
 import org.derive4j.hkt.HktConfig;
 import org.derive4j.hkt.__;
 import org.derive4j.hkt.processor.DataTypes.*;
@@ -88,26 +87,26 @@ public final class HktProcessor extends AbstractProcessor {
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         final Stream<TypeElement> allTypes = ElementFilter
             .typesIn(roundEnv.getRootElements())
-            //.parallelStream()
-            .stream()
+            .parallelStream()
             .flatMap(tel -> Stream.concat(Stream.of(tel), allInnerTypes(tel)));
 
         final Stream<HktDecl> targetTypes = allTypes.flatMap(this::asHktDecl);
 
-        final Stream<Valid<Stream<HkTypeError>>> validations = targetTypes.map(this::checkHktType);
+        final Stream<Valid<List<HkTypeError>>> validations = targetTypes.map(this::checkHktType);
 
-        final P2<Stream<Stream<Action<GenCode>>>, Stream<Action<HkTypeError>>> actions = Action
-            .partition(validations.map(valid -> asAction(valid)))
-            .map1(as -> StreamOps.group(as.sorted(Action.byClassName), Action::classNameEq));
+        P2<List<HktDecl>, List<P2<HktDecl, List<HkTypeError>>>> successFailures = Valid.partition(validations);
+
+        Map<String, List<HktDecl>> hktDeclByGenClassName = successFailures._1().stream()
+            .collect(Collectors.groupingBy(GenCode::genClassName));
+
+        Stream<IO<Unit>> generationActions = hktDeclByGenClassName.entrySet()
+            .stream()
+            .map(e -> GenCode.run(e.getKey(), e.getValue()));
 
         final IO<Unit> effects = IO.sequenceStream_(Stream.concat
-            (actions._1().map(GenCode::run), actions._2().map(this::reportErrors)));
+            (generationActions, successFailures._2().stream().map(p -> p.match(this::reportErrors))));
 
-        try {
-            effects.run();
-        } catch (IOException ioEx) {
-            throw new UncheckedIOException(ioEx);
-        }
+        effects.runUnchecked();
 
         return false;
     }
@@ -131,18 +130,7 @@ public final class HktProcessor extends AbstractProcessor {
         return allTypes.isEmpty()
             ? Stream.empty()
             : Stream.concat
-            //(allTypes.stream(), allTypes.parallelStream().flatMap(this::allInnerTypes))
                 (allTypes.stream(), allTypes.stream().flatMap(this::allInnerTypes));
-    }
-
-    private Action<?> asAction(Valid<Stream<HkTypeError>> valid) {
-        return _Valid.<Stream<HkTypeError>>cases().<Action<?>>
-
-            Success(hkt -> _Action.GenCode(GenCode.genClassName(hkt), hkt))
-
-            .Fail(_Action::ReportError)
-
-            .apply(valid);
     }
 
     private Stream<HktDecl> asHktDecl(TypeElement tEl) {
@@ -153,7 +141,7 @@ public final class HktProcessor extends AbstractProcessor {
             .map(hktInterface -> _HktDecl.of(tEl, hktInterface, hktConf(tEl)));
     }
 
-    private Valid<Stream<HkTypeError>> checkHktType(HktDecl hktDecl) {
+    private Valid<List<HkTypeError>> checkHktType(HktDecl hktDecl) {
         return Valid.accumulate(hktDecl, Stream.of(
             checkHktInterfaceNotRawType(hktDecl),
             checkAtLeastOneTypeParameter(hktDecl),
@@ -165,28 +153,28 @@ public final class HktProcessor extends AbstractProcessor {
         ));
     }
 
-    private Valid<HkTypeError> checkHktInterfaceNotRawType(HktDecl hktDecl) {
-        return _HktDecl.getHktInterface(hktDecl).getTypeArguments().isEmpty()
-            ? _Valid.Fail(hktDecl, HKTInterfaceDeclIsRawType())
-            : _Valid.Success(hktDecl);
+    private <E> Optional<E> check(boolean property, E otherWiseError) {
+        return property ? Optional.empty() : Optional.of(otherWiseError);
     }
 
-    private Valid<HkTypeError> checkAtLeastOneTypeParameter(HktDecl hktDecl) {
-        return _HktDecl.getTypeConstructor(hktDecl).getTypeParameters().isEmpty()
-            ? _Valid.Fail(hktDecl, HKTypesNeedAtLeastOneTypeParameter())
-            : _Valid.Success(hktDecl);
+    private Optional<HkTypeError> checkHktInterfaceNotRawType(HktDecl hktDecl) {
+        return check(!_HktDecl.getHktInterface(hktDecl).getTypeArguments().isEmpty(),  HKTInterfaceDeclIsRawType());
     }
 
-    private Valid<HkTypeError> checkRightHktInterface(HktDecl hktDecl) {
+
+    private Optional<HkTypeError> checkAtLeastOneTypeParameter(HktDecl hktDecl) {
+        return check(!_HktDecl.getTypeConstructor(hktDecl).getTypeParameters().isEmpty(), HKTypesNeedAtLeastOneTypeParameter());
+    }
+
+    private Optional<HkTypeError> checkRightHktInterface(HktDecl hktDecl) {
         return Visitors.asTypeElement.visit(_HktDecl.getHktInterface(hktDecl).asElement())
             .filter(hktInterfaceElement ->
                 _HktDecl.getTypeConstructor(hktDecl).getTypeParameters().size() + 1
                     != hktInterfaceElement.getTypeParameters().size())
-            .map(__ -> _Valid.Fail(hktDecl, WrongHKTInterface()))
-            .orElse(_Valid.Success(hktDecl));
+            .map(__ -> WrongHKTInterface());
     }
 
-    private Valid<HkTypeError> checkTypeParameters(HktDecl hktDecl) {
+    private Optional<HkTypeError> checkTypeParameters(HktDecl hktDecl) {
         final List<? extends TypeParameterElement> typeParameters =
             _HktDecl.getTypeConstructor(hktDecl).getTypeParameters();
         final List<? extends TypeMirror> typeArguments =
@@ -198,18 +186,14 @@ public final class HktProcessor extends AbstractProcessor {
             .mapToObj(typeParameters::get)
             .collect(Collectors.toList());
 
-        return typeParamsInError.isEmpty()
-            ? _Valid.Success(hktDecl)
-            : _Valid.Fail(hktDecl, NotMatchingTypeParams(typeParamsInError));
+        return check(typeParamsInError.isEmpty(), NotMatchingTypeParams(typeParamsInError));
     }
 
-    private Valid<HkTypeError> checkTCWitness(HktDecl hktDecl) {
-        return _HktDecl
+    private Optional<HkTypeError> checkTCWitness(HktDecl hktDecl) {
+        return check(_HktDecl
             .getHktInterface(hktDecl).getTypeArguments().stream().findFirst()
             .flatMap(witnessTm -> asValidTCWitness(_HktDecl.getTypeConstructor(hktDecl), witnessTm))
-            .isPresent()
-            ? _Valid.Success(hktDecl)
-            : _Valid.Fail(hktDecl, TCWitnessMustBeNestedClassOrClass());
+            .isPresent(), TCWitnessMustBeNestedClassOrClass());
     }
     private Optional<DeclaredType> asValidTCWitness(TypeElement typeConstructor, TypeMirror witnessTm) {
         return Visitors.asDeclaredType.visit(witnessTm)
@@ -221,7 +205,7 @@ public final class HktProcessor extends AbstractProcessor {
                     || witness.asElement().getEnclosingElement().equals(typeConstructor));
     }
 
-    private Valid<HkTypeError> checkNestedTCWitnessHasNoTypeParameter(HktDecl hktDecl) {
+    private Optional<HkTypeError> checkNestedTCWitnessHasNoTypeParameter(HktDecl hktDecl) {
         return _HktDecl
             .getHktInterface(hktDecl).getTypeArguments().stream().findFirst()
             .flatMap(witnessTm ->
@@ -229,12 +213,10 @@ public final class HktProcessor extends AbstractProcessor {
                     .filter(witness -> witness.getEnclosingElement().equals(_HktDecl.getTypeConstructor(hktDecl)))
                     .flatMap(witness -> witness.getTypeParameters().isEmpty()
                         ? Optional.empty()
-                        : Optional.of(NestedTCWitnessMustBeSimpleType(witness))))
-            .map(Valid.Fail(hktDecl))
-            .orElse(_Valid.Success(hktDecl));
+                        : Optional.of(NestedTCWitnessMustBeSimpleType(witness))));
     }
 
-    private Valid<HkTypeError> checkNestedTCWitnessIsStaticFinal(HktDecl hktDecl) {
+    private Optional<HkTypeError> checkNestedTCWitnessIsStaticFinal(HktDecl hktDecl) {
         final TypeElement typeConstructor = _HktDecl.getTypeConstructor(hktDecl);
 
         return _HktDecl
@@ -245,9 +227,7 @@ public final class HktProcessor extends AbstractProcessor {
                     .flatMap(witness -> (witness.getKind() == ElementKind.INTERFACE ||  witness.getModifiers().contains(Modifier.STATIC))
                         && (!typeConstructor.getModifiers().contains(Modifier.PUBLIC) || typeConstructor.getKind() == ElementKind.INTERFACE || witness.getModifiers().contains(Modifier.PUBLIC))
                         ? Optional.empty()
-                        : Optional.of(NestedTCWitnessMustBeStaticFinal(witness))))
-            .map(Valid.Fail(hktDecl))
-            .orElse(_Valid.Success(hktDecl));
+                        : Optional.of(NestedTCWitnessMustBeStaticFinal(witness))));
     }
 
 
@@ -257,14 +237,11 @@ public final class HktProcessor extends AbstractProcessor {
             .filter(declaredType -> Types.isSubtype(declaredType, Types.erasure(__Elt.asType())));
     }
 
-    @SuppressWarnings("OptionalGetWithoutIsPresent")
-    private IO<Unit> reportErrors(Action<HkTypeError> action) {
-        final HktDecl hkt = _Action.getHkt(action);
-        final Stream<HkTypeError> errors = _Action.getErrors(action).get();
-        final TypeElement typeElement = _HktDecl.getTypeConstructor(hkt);
-        final HktConf conf = _HktDecl.getConf(hkt);
+    private IO<Unit> reportErrors(HktDecl hktDecl, List<HkTypeError> errors) {
+        final TypeElement typeElement = _HktDecl.getTypeConstructor(hktDecl);
+        final HktConf conf = _HktDecl.getConf(hktDecl);
 
-        final Stream<IO<Unit>> effects = errors.map(_HkTypeError.cases()
+        final Stream<IO<Unit>> effects = errors.stream().map(_HkTypeError.cases()
             .HKTInterfaceDeclIsRawType(IO.effect(() -> Messager.printMessage
                 (Diagnostic.Kind.ERROR, hKTInterfaceDeclIsRawTypeErrorMessage(typeElement, conf), typeElement)))
 

@@ -1,9 +1,14 @@
 package org.derive4j.hkt.processor;
 
-import com.squareup.javapoet.*;
-import org.derive4j.hkt.HktConfig;
-import org.derive4j.hkt.processor.DataTypes.*;
-
+import com.squareup.javapoet.JavaFile;
+import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.TypeName;
+import com.squareup.javapoet.TypeSpec;
+import com.squareup.javapoet.TypeVariableName;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
@@ -14,13 +19,16 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import org.derive4j.hkt.HktConfig;
+import org.derive4j.hkt.processor.DataTypes.HktDecl;
+import org.derive4j.hkt.processor.DataTypes.IO;
+import org.derive4j.hkt.processor.DataTypes.Opt;
+import org.derive4j.hkt.processor.DataTypes.P2;
+import org.derive4j.hkt.processor.DataTypes.Unit;
 
 @SuppressWarnings("OptionalGetWithoutIsPresent")
 final class GenCode {
+
     private final Elements Elts;
     private final Types Types;
     private final Filer Filer;
@@ -33,18 +41,13 @@ final class GenCode {
         __Elt = elt;
     }
 
-    IO<Unit> run(Stream<Action<GenCode>> actions) {
-        final List<Action<GenCode>> actionList = actions.collect(Collectors.toList());
-
-        if (actionList.isEmpty()) return IO.unit(Unit.unit);
-        else {
-            final HktDecl firstHkt = _Action.getHkt(actionList.get(0));
-            final String genClassName = genClassName(firstHkt);
+    IO<Unit> run(String genClassName, List<HktDecl> hktDecls) {
+            final HktDecl firstHkt = hktDecls.get(0);
             final PackageElement genClassPkg = Elts.getPackageOf(_HktDecl.getTypeConstructor(firstHkt));
             final TypeSpec genClass = genClass(firstHkt);
 
-            final TypeSpec classToGen = actionList
-                .subList(1, actionList.size())
+            final TypeSpec classToGen = hktDecls
+                .subList(1, hktDecls.size())
                 .stream()
                 .reduce(genClass
                     , this::completeClass
@@ -53,8 +56,8 @@ final class GenCode {
             return createClass(genClassPkg, Opt.cata(readGenClass(genClassName)
                 , tel -> enrichClass(tel, classToGen)
                 , () -> classToGen));
-        }
     }
+
 
     String genClassName(HktDecl hktDecl) {
         return hktDecl.match((typeConstructor, hktInterface, conf) ->
@@ -126,8 +129,8 @@ final class GenCode {
             .build();
     }
 
-    private TypeSpec completeClass(TypeSpec spec, Action<GenCode> action) {
-        return spec.toBuilder().addMethod(genMethod(_Action.getHkt(action))).build();
+    private TypeSpec completeClass(TypeSpec spec, HktDecl hktDecl) {
+        return spec.toBuilder().addMethod(genMethod(hktDecl)).build();
     }
 
     private TypeSpec enrichClass(TypeElement elt, TypeSpec spec) {
