@@ -38,7 +38,6 @@ ext {
 
   derive4jVersion = '0.9.1'
   autoService = 'com.google.auto.service:auto-service:1.0-rc2'
-  javaPoet = "com.squareup:javapoet:1.7.0"
 }
 
 
@@ -56,8 +55,6 @@ dependencies {
 
   apt "org.derive4j:derive4j:${derive4jVersion}"
   apt autoService
-
-  compile javaPoet
 
   testCompile 'junit:junit:4.12'
   testCompile 'com.google.testing.compile:compile-testing:0.8'

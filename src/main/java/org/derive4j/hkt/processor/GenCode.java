@@ -1,21 +1,18 @@
 package org.derive4j.hkt.processor;
 
-import com.squareup.javapoet.JavaFile;
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeName;
-import com.squareup.javapoet.TypeSpec;
-import com.squareup.javapoet.TypeVariableName;
+import java.io.Writer;
+import java.text.MessageFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.processing.Filer;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.TypeParameterElement;
 import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
@@ -26,8 +23,25 @@ import org.derive4j.hkt.processor.DataTypes.Opt;
 import org.derive4j.hkt.processor.DataTypes.P2;
 import org.derive4j.hkt.processor.DataTypes.Unit;
 
+import static java.util.stream.Collectors.joining;
+
 @SuppressWarnings("OptionalGetWithoutIsPresent")
 final class GenCode {
+
+    private static final String CLASS_TEMPLATE = "package {0};\n" +
+        "\n" +
+        "import org.derive4j.hkt.*;\n" +
+        "\n" +
+        "{1}final class {2} '{'\n" +
+        "  private {2}() '{'}\n" +
+        "\n" +
+        "{3}\n" +
+        "}";
+
+    private static final String COERCE_METHOD_TEMPLATE = "  {0}static {2} {1} " +
+        "{4}({3} hkt) '{'\n" +
+        "    return ({1}) hkt;\n" +
+        "  }";
 
     private final Elements Elts;
     private final Types Types;
@@ -42,20 +56,60 @@ final class GenCode {
     }
 
     IO<Unit> run(String genClassName, List<HktDecl> hktDecls) {
-            final HktDecl firstHkt = hktDecls.get(0);
-            final PackageElement genClassPkg = Elts.getPackageOf(_HktDecl.getTypeConstructor(firstHkt));
-            final TypeSpec genClass = genClass(firstHkt);
 
-            final TypeSpec classToGen = hktDecls
-                .subList(1, hktDecls.size())
+        PackageElement packageELement = Elts.getPackageOf(_HktDecl.getTypeConstructor(hktDecls.get(0)));
+
+        Set<TypeElement> newElements = hktDecls.stream().map(_HktDecl::getTypeConstructor).collect(Collectors.toSet());
+
+        Stream<P2<HktEffectiveVisibility, String>> existingCoerceMethods = readGenClass(genClassName).map(
+            existingGenClasl -> ElementFilter.methodsIn(existingGenClasl.getEnclosedElements())
                 .stream()
-                .reduce(genClass
-                    , this::completeClass
-                    , (cl, __) -> cl);
+                .map(method -> parseExistingCoerceMethod(packageELement, method))
+                .flatMap(Opt::asStream)
+                .filter(p -> !newElements.contains(p._1()))
+                .map(P2::_2)).orElseGet(Stream::empty);
 
-            return createClass(genClassPkg, Opt.cata(readGenClass(genClassName)
-                , tel -> enrichClass(tel, classToGen)
-                , () -> classToGen));
+        Stream<P2<HktEffectiveVisibility, String>> newCoerceMethods = hktDecls.stream().map(hktDecl -> genCoerceMethod(packageELement, hktDecl));
+
+        List<P2<HktEffectiveVisibility, String>> allMethods = Stream.concat(existingCoerceMethods, newCoerceMethods)
+            .collect(Collectors.toList());
+
+        HktEffectiveVisibility classVisibility = allMethods.stream()
+            .map(P2::_1)
+            .filter(HktEffectiveVisibility.Public::equals)
+            .findAny()
+            .orElse(HktEffectiveVisibility.Package);
+
+        String genSimpleClassName = genClassName.substring(packageELement.getQualifiedName().toString().length() + 1,
+            genClassName.length());
+
+        String methods = allMethods.stream().map(P2::_2).collect(joining("\n\n"));
+
+        String classContent = MessageFormat.format(CLASS_TEMPLATE, packageELement.getQualifiedName().toString(),
+            classVisibility.prefix(), genSimpleClassName, methods);
+
+        return IO.effect(() -> {
+            try (Writer classWriter = Filer.createSourceFile(genClassName).openWriter()) {
+                classWriter.append(classContent);
+                classWriter.flush();
+            }
+        });
+    }
+
+    private enum HktEffectiveVisibility {
+        Public {
+            @Override
+            String prefix() {
+                return "public ";
+            }
+        }, Package {
+            @Override
+            String prefix() {
+                return "";
+            }
+        };
+
+        abstract String prefix();
     }
 
 
@@ -64,117 +118,66 @@ final class GenCode {
             Elts.getPackageOf(typeConstructor).getQualifiedName() + "." + _HktConf.getClassName(conf));
     }
 
-    private IO<Unit> createClass(PackageElement pkg, TypeSpec genClass) {
-        return () -> {
-            JavaFile
-                .builder(pkg.getQualifiedName().toString(), genClass)
-                .build()
-                .writeTo(Filer);
-
-            return Unit.unit;
-        };
+    private Optional<P2<TypeElement, P2<HktEffectiveVisibility, String>>> parseExistingCoerceMethod(PackageElement packageElement, ExecutableElement method) {
+        return method.getParameters().size() != 1
+            ? Optional.empty()
+            : Visitors.asDeclaredType.visit(method.getReturnType())
+                .filter(dt -> Elts.getPackageOf(dt.asElement()).equals(packageElement))
+                .flatMap(declaredType -> allSuperTypes(declaredType).filter(dt -> dt.asElement().equals(__Elt))
+                    .findFirst()
+                    .flatMap(hktInterface -> Visitors.asTypeElement.visit(declaredType.asElement())
+                        .map(typeElement -> _P2.of(typeElement,
+                            genCoerceMethod(packageElement, typeElement, hktInterface, method.getSimpleName().toString(),
+                                method.getModifiers().contains(Modifier.PUBLIC)
+                                    ? HktConfig.Visibility.Same
+                                    : HktConfig.Visibility.Package)))));
     }
 
-    private TypeSpec genClass(HktDecl hktDecl) {
-        return hktDecl.match((typeConstructor, hktInterface, conf) -> {
-            final boolean isPublic =
-                _HktConf.getVisibility(conf) == HktConfig.Visibility.Same
-                    && typeConstructor.getModifiers().stream().anyMatch(m -> m == Modifier.PUBLIC);
-
-            final Modifier[] modifiers = isPublic
-                ? new Modifier[]{ Modifier.FINAL, Modifier.PUBLIC }
-                : new Modifier[]{ Modifier.FINAL };
-
-            return TypeSpec
-                .classBuilder(_HktConf.getClassName(conf))
-                .addModifiers(modifiers)
-                .addMethod(MethodSpec.constructorBuilder().addModifiers(Modifier.PRIVATE).build())
-                .addMethod(genMethod(hktDecl))
-                .build();
-        });
+    private Stream<DeclaredType> allSuperTypes(DeclaredType typeMirror) {
+        return Types.directSupertypes(typeMirror)
+            .stream()
+            .map(Visitors.asDeclaredType::visit)
+            .flatMap(Opt::asStream)
+            .flatMap(s -> Stream.concat(Stream.of(s), allSuperTypes(s)));
     }
 
-    private MethodSpec genMethod(HktDecl hktDecl) {
+
+    private P2<HktEffectiveVisibility, String> genCoerceMethod(PackageElement packageElement, HktDecl hktDecl) {
         return hktDecl.match((typeConstructor, hktInterface, conf) -> {
+
             final String methodName =
                 _HktConf.getCoerceMethodTemplate(conf).replace("{ClassName}", typeConstructor.getSimpleName());
 
-            final List<? extends TypeParameterElement> typeParameters = typeConstructor.getTypeParameters();
-
-            final TypeName argType = TypeName.get(curriedHktInterface(hktInterface));
-
-            final String argName = "hkt";
-
-            final TypeName returnType = TypeName.get
-                (Types.getDeclaredType(typeConstructor, typeParameters.stream()
-                    .map(TypeParameterElement::asType)
-                    .toArray(TypeMirror[]::new)));
-
-            return buildCoerceMethod(methodName, typeParameters, argType, argName, returnType);
+            return genCoerceMethod(packageElement, typeConstructor, hktInterface, methodName, _HktConf.getVisibility(conf));
         });
     }
 
-    private static MethodSpec buildCoerceMethod(String methodName
-        , List<? extends TypeParameterElement> typeParameters
-        , TypeName argType
-        , String argName
-        , TypeName returnType) {
-        return MethodSpec
-            .methodBuilder(methodName)
-            .addModifiers(Modifier.STATIC)
-            .addTypeVariables(typeParameters.stream().map(TypeVariableName::get).collect(Collectors.toSet()))
-            .returns(returnType)
-            .addParameter(argType, argName, Modifier.FINAL)
-            .addCode("return ($L) $N;\n", returnType.toString(), argName)
-            .build();
-    }
+    private P2<HktEffectiveVisibility, String> genCoerceMethod(PackageElement packageElement, TypeElement typeConstructor,
+        DeclaredType hktInterface,
+        String methodName,
+        HktConfig.Visibility visibility) {
 
-    private TypeSpec completeClass(TypeSpec spec, HktDecl hktDecl) {
-        return spec.toBuilder().addMethod(genMethod(hktDecl)).build();
-    }
+        String packageNamePrefix = packageElement.getQualifiedName().toString() + ".";
 
-    private TypeSpec enrichClass(TypeElement elt, TypeSpec spec) {
-        final Stream<MethodSpec> methods = ElementFilter
-            .methodsIn(elt.getEnclosedElements())
-            .stream()
-            .map(method -> {
-                final String methodName = method.getSimpleName().toString();
-                final List<? extends TypeParameterElement> typeParameters = method.getTypeParameters();
-                final P2<String, TypeName> arg = method
-                    .getParameters()
-                    .stream()
-                    .reduce(_P2.of("", TypeName.VOID)
-                        , (__, p) -> _P2.of(p.getSimpleName().toString(), TypeName.get(p.asType()))
-                        , (pair, __) -> pair);
-                final TypeName returnType = TypeName.get(method.getReturnType());
+        String typeAsString = typeConstructor.asType()
+            .toString()
+            .substring(packageNamePrefix.length(), typeConstructor.asType().toString().length());
 
-                return buildCoerceMethod(methodName, typeParameters, arg._2(), arg._1(), returnType);
-            })
-            .filter(ms1 -> spec.methodSpecs.stream().noneMatch(ms2 -> methodEq(ms1, ms2)));
+        CharSequence typeParams = typeAsString.subSequence(typeConstructor.getSimpleName().length(), typeAsString.length());
 
-        return spec
-            .toBuilder()
-            .addMethods(methods.collect(Collectors.toList()))
-            .build();
-    }
+        String hktInterfaceAsString = hktInterface.toString()
+            .substring("org.derive4j.hkt.".length(), hktInterface.toString().length())
+            .replace(packageNamePrefix, "");
 
-    private static boolean methodEq(MethodSpec m1, MethodSpec m2) {
-        return m1.name.equals(m2.name) && m1.returnType.equals(m2.returnType);
+        HktEffectiveVisibility methodVisibility = visibility == HktConfig.Visibility.Same && typeConstructor.getModifiers().contains(Modifier
+            .PUBLIC) ? HktEffectiveVisibility.Public: HktEffectiveVisibility.Package;
+
+        return _P2.of(methodVisibility,
+            MessageFormat.format(COERCE_METHOD_TEMPLATE, methodVisibility.prefix(), typeAsString, typeParams,
+                hktInterfaceAsString, methodName));
     }
 
     private Optional<TypeElement> readGenClass(String genClassName) {
         return Opt.unNull(Elts.getTypeElement(genClassName));
-    }
-
-    private DeclaredType curriedHktInterface(DeclaredType hktInterface) {
-        final List<? extends TypeMirror> targs = hktInterface.getTypeArguments();
-
-        final DeclaredType startType = Types.getDeclaredType(__Elt, targs.get(0), targs.get(1));
-
-        return targs.subList(2, targs.size())
-            .stream()
-            .reduce(startType
-                , (declaredType, o) -> Types.getDeclaredType(__Elt, declaredType, o)
-                , (declaredType, __) -> declaredType);
     }
 }

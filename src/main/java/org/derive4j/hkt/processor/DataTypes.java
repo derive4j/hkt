@@ -127,23 +127,6 @@ final class DataTypes {
                 .apply(this);
         }
 
-        static Function<HkTypeError, Valid<HkTypeError>> Fail(HktDecl hktDecl) {
-            return error -> _Valid.Fail(hktDecl, error);
-        }
-
-        private static Valid<Stream<HkTypeError>> accum(Valid<Stream<HkTypeError>> acc, Valid<HkTypeError> v) {
-            return _Valid.<Stream<HkTypeError>>cases()
-
-                .Success(__ -> v.map(Stream::of))
-
-                .Fail((hkt, errors) -> _Valid.<HkTypeError>cases()
-                    .Success(__ -> acc)
-                    .Fail((__, error) -> _Valid.Fail(hkt, Stream.concat(errors, Stream.of(error))))
-                    .apply(v))
-
-                .apply(acc);
-        }
-
         static Valid<List<HkTypeError>> accumulate(HktDecl hktDecl, Stream<Optional<HkTypeError>> valids) {
             List<HkTypeError> errors = valids.flatMap(o -> o.map(Stream::of).orElseGet(Stream::empty)).collect(toList());
             return errors.isEmpty() ? _Valid.Success(hktDecl) : _Valid.Fail(hktDecl, errors);
@@ -165,6 +148,17 @@ final class DataTypes {
 
     @FunctionalInterface
     interface IO<A> {
+
+        interface Effect extends IO<Unit> {
+            void runEffect() throws IOException;
+
+            @Override
+            default Unit run() throws IOException {
+                runEffect();
+                return unit;
+            }
+        }
+
         A run() throws IOException;
 
         default A runUnchecked() throws UncheckedIOException {
@@ -185,8 +179,8 @@ final class DataTypes {
 
         static <A> IO<A> unit(A a) { return () -> a; }
 
-        static IO<Unit> effect(Runnable eff) {
-            return () -> { eff.run(); return unit; };
+        static IO<Unit> effect(Effect eff) {
+            return eff;
         }
 
         static <A> IO<Unit> sequenceStream_(Stream<IO<A>> ios) {
@@ -201,10 +195,6 @@ final class DataTypes {
                 }
                 return unit;
             };
-        }
-
-        static <A> IO<Optional<A>> sequenceOpt(Optional<IO<A>> oio) {
-            return Opt.cata(oio, io -> io.map(Optional::of), () -> IO.unit(Optional.empty()));
         }
     }
 
