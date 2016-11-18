@@ -163,8 +163,9 @@ final class GenCode {
         CharSequence typeParams = typeAsString.subSequence(typeConstructor.getSimpleName().length(), typeAsString.length());
 
         String hktInterfaceAsString = hktInterface.toString()
-            .replace("org.derive4j.hkt.", "")
-            .replace(packageNamePrefix, "");
+            .replace(Visitors.asTypeElement.visit(hktInterface.asElement()).get().getQualifiedName(), hktInterface
+                .asElement().getSimpleName())
+            .replace(typeConstructor.getQualifiedName(), typeConstructor.getSimpleName());
 
         HktEffectiveVisibility methodVisibility = visibility == HktConfig.Visibility.Same && typeConstructor.getModifiers().contains(Modifier
             .PUBLIC) ? HktEffectiveVisibility.Public: HktEffectiveVisibility.Package;
