@@ -28,6 +28,22 @@ import static java.util.stream.Collectors.joining;
 @SuppressWarnings("OptionalGetWithoutIsPresent")
 final class GenCode {
 
+    private enum HktEffectiveVisibility {
+        Public {
+            @Override
+            String prefix() {
+                return "public ";
+            }
+        }, Package {
+            @Override
+            String prefix() {
+                return "";
+            }
+        };
+
+        abstract String prefix();
+    }
+
     private static final String CLASS_TEMPLATE = "package {0};\n" +
         "\n" +
         "import org.derive4j.hkt.*;\n" +
@@ -96,22 +112,6 @@ final class GenCode {
         });
     }
 
-    private enum HktEffectiveVisibility {
-        Public {
-            @Override
-            String prefix() {
-                return "public ";
-            }
-        }, Package {
-            @Override
-            String prefix() {
-                return "";
-            }
-        };
-
-        abstract String prefix();
-    }
-
 
     String genClassName(HktDecl hktDecl) {
         return hktDecl.match((typeConstructor, hktInterface, conf) ->
@@ -133,13 +133,6 @@ final class GenCode {
                                     : HktConfig.Visibility.Package)))));
     }
 
-    private Stream<DeclaredType> allSuperTypes(DeclaredType typeMirror) {
-        return Types.directSupertypes(typeMirror)
-            .stream()
-            .map(Visitors.asDeclaredType::visit)
-            .flatMap(Opt::asStream)
-            .flatMap(s -> Stream.concat(Stream.of(s), allSuperTypes(s)));
-    }
 
 
     private P2<HktEffectiveVisibility, String> genCoerceMethod(PackageElement packageElement, HktDecl hktDecl) {
@@ -148,7 +141,11 @@ final class GenCode {
             final String methodName =
                 _HktConf.getCoerceMethodTemplate(conf).replace("{ClassName}", typeConstructor.getSimpleName());
 
-            return genCoerceMethod(packageElement, typeConstructor, hktInterface, methodName, _HktConf.getVisibility(conf));
+            DeclaredType rootHktInterface = allSuperTypes(hktInterface).filter(dt -> dt.asElement().equals(__Elt))
+                .findAny()
+                .orElse(hktInterface);
+
+            return genCoerceMethod(packageElement, typeConstructor, rootHktInterface, methodName, _HktConf.getVisibility(conf));
         });
     }
 
@@ -166,7 +163,7 @@ final class GenCode {
         CharSequence typeParams = typeAsString.subSequence(typeConstructor.getSimpleName().length(), typeAsString.length());
 
         String hktInterfaceAsString = hktInterface.toString()
-            .substring("org.derive4j.hkt.".length(), hktInterface.toString().length())
+            .replace("org.derive4j.hkt.", "")
             .replace(packageNamePrefix, "");
 
         HktEffectiveVisibility methodVisibility = visibility == HktConfig.Visibility.Same && typeConstructor.getModifiers().contains(Modifier
@@ -179,5 +176,13 @@ final class GenCode {
 
     private Optional<TypeElement> readGenClass(String genClassName) {
         return Opt.unNull(Elts.getTypeElement(genClassName));
+    }
+
+    private Stream<DeclaredType> allSuperTypes(DeclaredType typeMirror) {
+        return Types.directSupertypes(typeMirror)
+            .stream()
+            .map(Visitors.asDeclaredType::visit)
+            .flatMap(DataTypes.Opt::asStream)
+            .flatMap(s -> Stream.concat(Stream.of(s), allSuperTypes(s)));
     }
 }
