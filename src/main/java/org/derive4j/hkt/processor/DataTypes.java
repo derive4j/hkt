@@ -5,7 +5,6 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -21,6 +20,7 @@ import static org.derive4j.hkt.processor.DataTypes.Unit.unit;
 import static org.derive4j.hkt.processor._HktConf.Conf;
 import static org.derive4j.hkt.processor._HktConf.getClassName;
 import static org.derive4j.hkt.processor._HktConf.getCoerceMethodTemplate;
+import static org.derive4j.hkt.processor._HktConf.getTypeEqMethodTemplate;
 import static org.derive4j.hkt.processor._HktConf.getVisibility;
 import static org.derive4j.hkt.processor._HktConf.getWitnessTypeName;
 
@@ -57,36 +57,32 @@ final class DataTypes {
             R Conf(String className
                 , HktConfig.Visibility visibility
                 , String coerceMethodTemplate
+                , String typeEqMethodTemplate
                 , String witnessTypeName);
         }
 
         abstract <R> R match(Case<R> Config);
 
         HktConf mergeWith(HktConf other) {
-            return _HktConf.cases()
-                .Conf((ocn, ov, omt, own) ->
-
+            return other.match((ocn, ov, omt, oteqmt, own) ->
                     Conf( ocn.equals(getClassName(defaultConfig)) ? getClassName(this) : ocn
                         , ov == getVisibility(defaultConfig) ? getVisibility(this) : ov
                         , omt.equals(getCoerceMethodTemplate(defaultConfig)) ? getCoerceMethodTemplate(this) : omt
-                        , own.equals(getWitnessTypeName(defaultConfig)) ? getWitnessTypeName(this) : own))
-
-                .apply(other);
+                        , oteqmt.equals(getTypeEqMethodTemplate(defaultConfig)) ? getTypeEqMethodTemplate(this) : oteqmt
+                        , own.equals(getWitnessTypeName(defaultConfig)) ? getWitnessTypeName(this) : own));
         }
 
         static HktConf from(HktConfig hktConfig) {
-            return Conf(hktConfig.generatedIn()
+            return Conf(hktConfig.generateIn()
                 , hktConfig.withVisibility()
-                , hktConfig.methodNames()
+                , hktConfig.coerceMethodName()
+                , hktConfig.typeEqMethodName()
                 , hktConfig.witnessTypeName());
         }
 
-        private static final HktConfig defaultHktConfig = defaultConf.class.getAnnotation(HktConfig.class);
+        static final HktConf defaultConfig = _HktConf.Conf("Hkt", HktConfig.Visibility.Package, "as{ClassName}",
+            "{className}", "µ");
 
-        static final HktConf defaultConfig = HktConf.from(defaultHktConfig);
-
-        @HktConfig
-        private enum defaultConf {}
     }
 
     static final class Opt {
@@ -186,9 +182,7 @@ final class DataTypes {
         static <A> IO<Unit> sequenceStream_(Stream<IO<A>> ios) {
             return () -> {
                 try {
-                    ios.forEachOrdered(io -> {
-                        io.runUnchecked();
-                    });
+                    ios.forEachOrdered(IO::runUnchecked);
                 }
                 catch (UncheckedIOException e) {
                     throw e.getCause();

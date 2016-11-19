@@ -11,21 +11,27 @@ import java.lang.annotation.Target;
  * found in annotated packages closer to the root.
  */
 @Target({ElementType.PACKAGE, ElementType.TYPE})
-@Retention(RetentionPolicy.RUNTIME)
 public @interface HktConfig {
+
+  /**
+   * May be used to enforce the name of the witness type (see {@link __}) throughout a project or a package
+   */
+  String witnessTypeName() default "µ";
 
   /**
    * All coerce methods for a given package will be generated in a class with that name.
    */
-  String generatedIn() default "Hkt";
+  String generateIn() default "Hkt";
 
   enum Visibility {
     Same,
-    Package
+    Package,
+    /** Disable code generation: */
+    Disabled
   }
 
   /**
-   * Define the visibility of the generated class: same as the higher kinded class or package.
+   * Define the visibility of the generated methods: same as the higher kinded class or package.
    */
   Visibility withVisibility() default Visibility.Package;
 
@@ -33,11 +39,13 @@ public @interface HktConfig {
    * Template for the name of the generated methods that handle safe coercion from a {@link __} instance to the actual type.
    * Should contains {@code {ClassName}} in reference to the class of the type.
    */
-  String methodNames() default "as{ClassName}";
+  String coerceMethodName() default "as{ClassName}";
 
   /**
-   * May be used to enforce the name of the witness type (see {@link __}) throughout a project or a package
+   * Template for the name of the generated methods that provide a type equality instance between the actual type and its
+   * higher-kinded encoding.
+   * Should contains {@code {ClassName}} in reference to the class of the type.
    */
-  String witnessTypeName() default "µ";
+  String typeEqMethodName() default "{className}";
 
 }

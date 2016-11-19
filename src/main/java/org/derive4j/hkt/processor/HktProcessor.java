@@ -332,7 +332,7 @@ public final class HktProcessor extends AbstractProcessor {
                     , expectedHktInterface(tel, witnessTypeName)
                     , witnessTypeName
                     , tel.toString()
-                    , "public static final class " + witnessTypeName + " {}")));
+                    , "public enum " + witnessTypeName + " {}")));
     }
 
     private String expectedHktInterface(TypeElement tel, String witness) {
