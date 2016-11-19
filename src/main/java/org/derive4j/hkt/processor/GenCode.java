@@ -19,7 +19,7 @@ import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import org.derive4j.hkt.HktConfig;
-import org.derive4j.hkt.Leibniz;
+import org.derive4j.hkt.TypeEq;
 import org.derive4j.hkt.processor.DataTypes.HktDecl;
 import org.derive4j.hkt.processor.DataTypes.IO;
 import org.derive4j.hkt.processor.DataTypes.Opt;
@@ -64,8 +64,8 @@ final class GenCode {
         "  }\n" +
         "\n" +
         "  @SuppressWarnings(\"unchecked\")\n" +
-        "  {0}static {2} Leibniz<{3}, {1}> {5}()'{'\n" +
-        "    return (Leibniz) Leibniz.refl();\n" +
+        "  {0}static {2} TypeEq<{3}, {1}> {5}()'{'\n" +
+        "    return (TypeEq) TypeEq.refl();\n" +
         "  }";
 
     private final Elements Elts;
@@ -80,7 +80,7 @@ final class GenCode {
         Types = types;
         Filer = filer;
         __Elt = elt;
-        TypeEqElt = Elts.getTypeElement(Leibniz.class.getName());
+        TypeEqElt = Elts.getTypeElement(TypeEq.class.getName());
     }
 
     IO<Unit> run(String genClassName, List<HktDecl> hktDecls) {

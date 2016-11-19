@@ -21,11 +21,11 @@ public interface __3<f, A, B, C> extends __2<__<f, A>, B, C> {
    * @param <A> the antepenultimate type variable
    * @param <B> before last type variable.
    * @param <C> last type variable.
-   * @return a leibniz instance witness of the type equality.
+   * @return a TypeEq instance witness of the type equality.
    */
   @SuppressWarnings("unchecked")
-  static <f, A, B, C> Leibniz<__<__<__<f, A>, B>, C>, __3<f, A, B, C>> eq__() {
-    return (Leibniz) Leibniz.refl();
+  static <f, A, B, C> TypeEq<__<__<__<f, A>, B>, C>, __3<f, A, B, C>> eq__() {
+    return (TypeEq) TypeEq.refl();
   }
 
   /**
@@ -36,10 +36,10 @@ public interface __3<f, A, B, C> extends __2<__<f, A>, B, C> {
    * @param <A> the antepenultimate type variable
    * @param <B> before last type variable.
    * @param <C> last type variable.
-   * @return a leibniz instance witness of the type equality.
+   * @return a TypeEq instance witness of the type equality.
    */
   @SuppressWarnings("unchecked")
-  static <f, A, B, C> Leibniz<__2<__<f, A>, B, C>, __3<f, A, B, C>> eq__2() {
-    return (Leibniz) Leibniz.refl();
+  static <f, A, B, C> TypeEq<__2<__<f, A>, B, C>, __3<f, A, B, C>> eq__2() {
+    return (TypeEq) TypeEq.refl();
   }
 }

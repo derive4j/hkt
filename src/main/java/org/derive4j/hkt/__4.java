@@ -19,11 +19,11 @@ public interface __4<f, A, B, C, D> extends __3<__<f, A>, B, C, D> {
    * {@code __<__<__<__<f, A>, B>, C>, D>}  =:= {@code __4<f, A, B, C, D>}</pre>
    * that is guaranteed by the hkt type checker.
    *
-   * @return a leibniz instance witness of the type equality.
+   * @return a TypeEq instance witness of the type equality.
    */
   @SuppressWarnings("unchecked")
-  static <f, A, B, C, D> Leibniz<__<__<__<__<f, A>, B>, C>, D>, __4<f, A, B, C, D>> eq__() {
-    return (Leibniz) Leibniz.refl();
+  static <f, A, B, C, D> TypeEq<__<__<__<__<f, A>, B>, C>, D>, __4<f, A, B, C, D>> eq__() {
+    return (TypeEq) TypeEq.refl();
   }
 
   /**
@@ -31,10 +31,10 @@ public interface __4<f, A, B, C, D> extends __3<__<f, A>, B, C, D> {
    * {@code __3<__<f, A>, B, C, D>}  =:= {@code __4<f, A, B, C, D>}</pre>
    * that is guaranteed by the hkt type checker.
    *
-   * @return a leibniz instance witness of the type equality.
+   * @return a TypeEq instance witness of the type equality.
    */
   @SuppressWarnings("unchecked")
-  static <f, A, B, C, D> Leibniz<__3<__<f, A>, B, C, D>, __4<f, A, B, C, D>> eq__3() {
-    return (Leibniz) Leibniz.refl();
+  static <f, A, B, C, D> TypeEq<__3<__<f, A>, B, C, D>, __4<f, A, B, C, D>> eq__3() {
+    return (TypeEq) TypeEq.refl();
   }
 }
