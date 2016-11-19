@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.processing.Filer;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
@@ -160,19 +161,26 @@ final class GenCode {
             .toString()
             .substring(packageNamePrefix.length(), typeConstructor.asType().toString().length());
 
-        CharSequence typeParams = typeAsString.subSequence(typeConstructor.getSimpleName().length(), typeAsString.length());
+        TypeElement packageRelativeTypeElement = packageRelativeTypeElement(typeConstructor);
+
+        CharSequence typeParams =  typeConstructor.asType().toString().substring(typeConstructor.getQualifiedName().length());
 
         String hktInterfaceAsString = hktInterface.toString()
             .replace(Visitors.asTypeElement.visit(hktInterface.asElement()).get().getQualifiedName(), hktInterface
                 .asElement().getSimpleName())
-            .replace(typeConstructor.getQualifiedName(), typeConstructor.getSimpleName());
+            .replace(packageRelativeTypeElement.getQualifiedName(), packageRelativeTypeElement.getSimpleName());
 
-        HktEffectiveVisibility methodVisibility = visibility == HktConfig.Visibility.Same && typeConstructor.getModifiers().contains(Modifier
-            .PUBLIC) ? HktEffectiveVisibility.Public: HktEffectiveVisibility.Package;
+        HktEffectiveVisibility methodVisibility = visibility == HktConfig.Visibility.Same && typeConstructor.getModifiers()
+            .contains(Modifier.PUBLIC) ? HktEffectiveVisibility.Public: HktEffectiveVisibility.Package;
 
         return _P2.of(methodVisibility,
             MessageFormat.format(COERCE_METHOD_TEMPLATE, methodVisibility.prefix(), typeAsString, typeParams,
                 hktInterfaceAsString, methodName));
+    }
+
+    private TypeElement packageRelativeTypeElement(TypeElement typeElement) {
+        return typeElement.getEnclosingElement().getKind() == ElementKind.PACKAGE ? typeElement : packageRelativeTypeElement(
+            (TypeElement) typeElement.getEnclosingElement());
     }
 
     private Optional<TypeElement> readGenClass(String genClassName) {
