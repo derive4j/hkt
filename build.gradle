@@ -2,7 +2,7 @@
 buildscript {
   repositories {
     maven {
-      url "https://plugins.gradle.org/m2/"
+      url 'https://plugins.gradle.org/m2/'
     }
   }
   dependencies {
@@ -33,10 +33,10 @@ repositories {
 
 ext {
   isSnapshot = true
-  hktBaseVersion = '0.2'
+  hktBaseVersion = '0.3'
   hktVersion = hktBaseVersion + (isSnapshot ? '-SNAPSHOT' : '')
 
-  derive4jVersion = '0.7'
+  derive4jVersion = '0.9.1'
   autoService = 'com.google.auto.service:auto-service:1.0-rc2'
 }
 
@@ -70,9 +70,9 @@ tasks.withType(JavaCompile) {
   options.compilerArgs << '-Xlint:all'
 }
 
-task javadocJar(type: Jar, dependsOn: "javadoc") {
+task javadocJar(type: Jar, dependsOn: 'javadoc') {
   classifier = 'javadoc'
-  from "build/docs/javadoc"
+  from 'build/docs/javadoc'
 }
 
 task sourcesJar(type: Jar) {
@@ -91,15 +91,15 @@ install {
     pom {
       groupId = project.group
       project {
-        name "HKT"
+        name 'HKT'
         packaging 'jar'
-        description "Interfaces and type-checker for higher kinded types support in Java"
-        url 'https://github.com/derive4j/hkt"'
+        description 'Interfaces and type-checker for higher kinded types support in Java'
+        url 'https://github.com/derive4j/hkt'
         organization {
           name 'Derive4J HKT contributors'
         }
         scm {
-          url "git://github.com/derive4j/hkt.git"
+          url 'git://github.com/derive4j/hkt.git'
         }
         licenses {
           license {
