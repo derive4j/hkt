@@ -65,6 +65,87 @@ public abstract class TypeEq<A, B> implements __2<TypeEq.µ, A, B> {
   }
 
   /**
+   * Safe cast to __2. (guaranteed by the hkt type checker).
+   */
+  public static <f, A, B> __2<f, A, B> as__2(__<__<f, A>, B> fab) {
+    return (__2<f, A, B>) fab;
+  }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __2<f, A, B>  =:= __<__<f, A>, B>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @param <A> before last type variable.
+   * @param <B> last type variable.
+   * @return a TypeEq instance witness of the type equality.
+   */
+  @SuppressWarnings("unchecked")
+  public static <f, A, B> TypeEq<__<__<f, A>, B>, __2<f, A, B>> __2() {
+    return (TypeEq) TypeEq.refl();
+  }
+
+  /**
+   * Safe cast to __3. (guaranteed by the hkt type checker).
+   */
+  public static <f, A, B, C> __3<f, A, B, C> as__3(__<__<__<f, A>, B>, C> fabc) {
+    return (__3<f, A, B, C>) fabc;
+  }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __<__<__<f, A>, B>, C>}  =:= {@code __3<f, A, B, C>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @param <A> the antepenultimate type variable
+   * @param <B> before last type variable.
+   * @param <C> last type variable.
+   * @return a TypeEq instance witness of the type equality.
+   */
+  @SuppressWarnings("unchecked")
+  public static <f, A, B, C> TypeEq<__<__<__<f, A>, B>, C>, __3<f, A, B, C>> __3() {
+    return (TypeEq) TypeEq.refl();
+  }
+
+  /**
+   * Safe cast to __4. (guaranteed by the hkt type checker).
+   */
+  public static <f, A, B, C, D> __4<f, A, B, C, D> as__4(__<__<__<__<f, A>, B>, C>, D> fabcd) {
+    return (__4<f, A, B, C, D>) fabcd;
+  }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __<__<__<__<f, A>, B>, C>, D>}  =:= {@code __4<f, A, B, C, D>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @return a TypeEq instance witness of the type equality.
+   */
+  @SuppressWarnings("unchecked")
+  public static <f, A, B, C, D> TypeEq<__<__<__<__<f, A>, B>, C>, D>, __4<f, A, B, C, D>> __4() {
+    return (TypeEq) TypeEq.refl();
+  }
+
+  /**
+   * Safe cast to __5. (guaranteed by the hkt type checker).
+   */
+  public static <f, A, B, C, D, E> __5<f, A, B, C, D, E> as__5(__<__<__<__<__<f, A>, B>, C>, D>, E> fabcde) {
+    return (__5<f, A, B, C, D, E>) fabcde;
+  }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __<__<__<__<__<f, A>, B>, C>, D>, E>}  =:= {@code __4<f, A, B, C, D>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @return a TypeEq instance witness of the type equality.
+   */
+  @SuppressWarnings("unchecked")
+  public static <f, A, B, C, D, E> TypeEq<__<__<__<__<__<f, A>, B>, C>, D>, E>, __5<f, A, B, C, D, E>> __5() {
+    return (TypeEq) TypeEq.refl();
+  }
+
+  /**
    * Leibnizian equality states that two things are equal if you can substitute one for the other in all contexts.
    *
    * @param fa a term whose type last parameter is {@link A}.
