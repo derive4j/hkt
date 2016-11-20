@@ -60,7 +60,7 @@ final class GenCode {
         "{4}\n" +
         "}";
 
-    private static final String COERCE_METHOD_TEMPLATE = "  {0}static {2} {1} " +
+    private static final String METHODS_TEMPLATE = "  {0}static {2} {1} " +
         "{4}({3} hkt) '{'\n" +
         "    return ({1}) hkt;\n" +
         "  }\n" +
@@ -86,7 +86,6 @@ final class GenCode {
     }
 
     IO<Unit> run(String genClassName, List<HktDecl> hktDecls) {
-
 
         Set<TypeElement> newTypeElements = hktDecls.stream().map(_HktDecl::getTypeConstructor).collect(Collectors.toSet());
 
@@ -223,7 +222,7 @@ final class GenCode {
             .replace(packageRelativeTypeElement.getQualifiedName(), packageRelativeTypeElement.getSimpleName());
 
         return _P2.of(visibility,
-            MessageFormat.format(COERCE_METHOD_TEMPLATE, visibility.prefix(), typeAsString, typeParams,
+            MessageFormat.format(METHODS_TEMPLATE, visibility.prefix(), typeAsString, typeParams,
                 hktInterfaceAsString, coerceMethodName, typeEqMethodName));
     }
 

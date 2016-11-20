@@ -30,11 +30,12 @@
 package org.derive4j.hkt.processor;
 
 import com.google.auto.service.AutoService;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -46,8 +47,10 @@ import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
@@ -73,6 +76,7 @@ import org.derive4j.hkt.processor.JavaCompiler.OpenJdkSpecificApi;
 
 import static java.lang.Math.min;
 import static java.lang.String.format;
+import static org.derive4j.hkt.processor.DataTypes.Opt.unNull;
 import static org.derive4j.hkt.processor._HkTypeError.HKTInterfaceDeclIsRawType;
 import static org.derive4j.hkt.processor._HkTypeError.HKTypesNeedAtLeastOneTypeParameter;
 import static org.derive4j.hkt.processor._HkTypeError.NestedTCWitnessMustBeSimpleType;
@@ -94,6 +98,13 @@ public final class HktProcessor extends AbstractProcessor {
 
     private TypeElement __Elt;
 
+    private TypeElement HktConfigElt;
+    private ExecutableElement witnessTypeNameConfMethod;
+    private ExecutableElement generateInConfMethod;
+    private ExecutableElement withVisibilityConfMethod;
+    private ExecutableElement coerceMethodNameConfMethod;
+    private ExecutableElement typeEqMethodNameConfMethod;
+
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
@@ -105,6 +116,13 @@ public final class HktProcessor extends AbstractProcessor {
 
         __Elt = Elts.getTypeElement(__.class.getCanonicalName());
         GenCode = new GenCode(Elts, Types, processingEnv.getFiler(), __Elt);
+
+        HktConfigElt = Elts.getTypeElement(HktConfig.class.getName());
+        witnessTypeNameConfMethod = unsafeGetExecutableElement(HktConfigElt, "witnessTypeName");
+        generateInConfMethod = unsafeGetExecutableElement(HktConfigElt, "generateIn");
+        withVisibilityConfMethod = unsafeGetExecutableElement(HktConfigElt, "withVisibility");
+        coerceMethodNameConfMethod = unsafeGetExecutableElement(HktConfigElt, "coerceMethodName");
+        typeEqMethodNameConfMethod = unsafeGetExecutableElement(HktConfigElt, "typeEqMethodName");
     }
 
     @Override
@@ -373,43 +391,67 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
     private HktConf hktConf(Element elt) {
-        return maybeHktConf(elt).orElse(HktConf.defaultConfig);
+        return hktConfDefaultMod(elt).apply(HktConf.defaultConfig);
     }
 
-    private Optional<HktConf> maybeHktConf(Element elt) {
-        return Opt.cata(selfHktConf(elt)
+    private Function<HktConf, HktConf> hktConfDefaultMod(Element elt) {
+        Function<HktConf, HktConf> conf = elt.getAnnotationMirrors()
+            .stream()
+            .filter(am -> am.getAnnotationType().asElement().equals(this.HktConfigElt))
+            .map(am -> {
+                Map<? extends ExecutableElement, ? extends AnnotationValue> explicitValues = am.getElementValues();
 
-            , selfConf -> Opt
-                .or(parentHktConf(elt).map(pconf -> pconf.mergeWith(selfConf))
-                    , () -> Optional.of(selfConf))
+                Optional<Function<HktConf, HktConf>> witnessTypeName = unNull(explicitValues.get(witnessTypeNameConfMethod)).map(
+                    value -> _HktConf.setWitnessTypeName((String) Visitors.getAnnotationValue.visit(value)));
 
-            , () -> parentHktConf(elt));
-    }
+                Optional<Function<HktConf, HktConf>> generateIn = unNull(explicitValues.get(generateInConfMethod)).map(
+                    value -> _HktConf.setClassName((String) Visitors.getAnnotationValue.visit(value)));
 
-    private Optional<HktConf> parentHktConf(Element elt) {
-        return parentElt(elt).flatMap(this::maybeHktConf);
+                Optional<Function<HktConf, HktConf>> withVisibility = unNull(explicitValues.get(withVisibilityConfMethod)).map(
+                    value -> _HktConf.setVisibility(
+                        HktConfig.Visibility.valueOf((String) Visitors.getAnnotationValue.visit(value))));
+
+                Optional<Function<HktConf, HktConf>> coerceMethodName = unNull(
+                    explicitValues.get(coerceMethodNameConfMethod)).map(
+                    value -> _HktConf.setCoerceMethodTemplate((String) Visitors.getAnnotationValue.visit(value)));
+
+                Optional<Function<HktConf, HktConf>> typeEqMethodName = unNull(
+                    explicitValues.get(typeEqMethodNameConfMethod)).map(
+                    value -> _HktConf.setTypeEqMethodTemplate((String) Visitors.getAnnotationValue.visit(value)));
+
+                return Stream.of(witnessTypeName, generateIn, withVisibility, coerceMethodName, typeEqMethodName)
+                    .flatMap(Opt::asStream)
+                    .reduce(Function::andThen)
+                    .orElse(Function.identity());
+
+            })
+            .findAny()
+            .orElse(Function.identity());
+
+        return Opt.cata(parentElt(elt),
+            parentElt -> conf.compose(hktConfDefaultMod(parentElt)),
+            () -> conf);
     }
 
     private Optional<Element> parentElt(Element elt) {
-        return Opt.cata(Opt.unNull(elt.getEnclosingElement())
+        return Opt.cata(unNull(elt.getEnclosingElement())
             , Optional::of
-            , () -> parentPkg((PackageElement) elt).map(__ -> __));
+            , () -> parentPkg((PackageElement) elt));
     }
 
-    private Optional<PackageElement> parentPkg(PackageElement elt) {
-        final String[] pkgNames = elt.getQualifiedName().toString().split("\\.");
-
-        if (pkgNames.length == 1) return Optional.empty();
-        else {
-            final String[] targetNames = Arrays.copyOfRange(pkgNames, 0, pkgNames.length - 1);
-            final String targetName = Arrays.stream(targetNames).collect(Collectors.joining("."));
-
-            return Opt.unNull(Elts.getPackageElement(targetName));
-        }
+    private Optional<Element> parentPkg(PackageElement elt) {
+        int lastDot = elt.getQualifiedName().toString().lastIndexOf('.');
+        return (lastDot == -1)
+            ? Optional.empty()
+            : unNull(Elts.getPackageElement(elt.getQualifiedName().subSequence(0, lastDot)));
     }
 
-    private static Optional<HktConf> selfHktConf(Element elt) {
-        return Opt.unNull(elt.getAnnotation(HktConfig.class)).map(HktConf::from);
+    private static ExecutableElement unsafeGetExecutableElement(TypeElement typeElement, String methodName) {
+        return (ExecutableElement) typeElement.getEnclosedElements()
+            .stream()
+            .filter(e -> e.getSimpleName().contentEquals(methodName))
+            .findFirst()
+            .orElseThrow(() -> new NoSuchElementException(typeElement + "#" + methodName));
     }
 
 }

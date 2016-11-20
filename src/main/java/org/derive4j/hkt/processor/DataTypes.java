@@ -17,14 +17,7 @@ import org.derive4j.hkt.HktConfig;
 
 import static java.util.stream.Collectors.toList;
 import static org.derive4j.hkt.processor.DataTypes.Unit.unit;
-import static org.derive4j.hkt.processor._HktConf.Conf;
-import static org.derive4j.hkt.processor._HktConf.getClassName;
-import static org.derive4j.hkt.processor._HktConf.getCoerceMethodTemplate;
-import static org.derive4j.hkt.processor._HktConf.getTypeEqMethodTemplate;
-import static org.derive4j.hkt.processor._HktConf.getVisibility;
-import static org.derive4j.hkt.processor._HktConf.getWitnessTypeName;
 
-@SuppressWarnings("OptionalGetWithoutIsPresent")
 final class DataTypes {
     private DataTypes() {}
 
@@ -62,23 +55,6 @@ final class DataTypes {
         }
 
         abstract <R> R match(Case<R> Config);
-
-        HktConf mergeWith(HktConf other) {
-            return other.match((ocn, ov, omt, oteqmt, own) ->
-                    Conf( ocn.equals(getClassName(defaultConfig)) ? getClassName(this) : ocn
-                        , ov == getVisibility(defaultConfig) ? getVisibility(this) : ov
-                        , omt.equals(getCoerceMethodTemplate(defaultConfig)) ? getCoerceMethodTemplate(this) : omt
-                        , oteqmt.equals(getTypeEqMethodTemplate(defaultConfig)) ? getTypeEqMethodTemplate(this) : oteqmt
-                        , own.equals(getWitnessTypeName(defaultConfig)) ? getWitnessTypeName(this) : own));
-        }
-
-        static HktConf from(HktConfig hktConfig) {
-            return Conf(hktConfig.generateIn()
-                , hktConfig.withVisibility()
-                , hktConfig.coerceMethodName()
-                , hktConfig.typeEqMethodName()
-                , hktConfig.witnessTypeName());
-        }
 
         static final HktConf defaultConfig = _HktConf.Conf("Hkt", HktConfig.Visibility.Package, "as{ClassName}",
             "{className}", "µ");
