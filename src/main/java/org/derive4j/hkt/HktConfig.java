@@ -16,7 +16,7 @@ public @interface HktConfig {
   /**
    * May be used to enforce the name of the witness type (see {@link __}) throughout a project or a package
    */
-  String witnessTypeName() default "µ";
+  String witnessTypeName() default ":not enforced";
 
   /**
    * All coerce methods for a given package will be generated in a class with that name.

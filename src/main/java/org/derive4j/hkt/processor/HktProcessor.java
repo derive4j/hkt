@@ -357,7 +357,7 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
     private String expectedHktInterfaceMessage(TypeElement tel, HktConf conf) {
-        final String witnessTypeName = _HktConf.getWitnessTypeName(conf);
+        final String witnessTypeName = Optional.of(_HktConf.getWitnessTypeName(conf)).filter(w -> !w.startsWith(":")).orElse("µ");
 
         return format("%s should %s %s", tel.toString(), tel.getKind() == ElementKind.CLASS ? "implements" : "extends",
 
