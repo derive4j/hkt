@@ -1,5 +1,7 @@
 package org.derive4j.hkt.processor;
 
+import java.util.stream.Stream;
+import javax.lang.model.util.Types;
 import org.derive4j.hkt.processor.DataTypes.Unit;
 
 import javax.lang.model.element.ElementVisitor;
@@ -28,4 +30,12 @@ final class Visitors {
                 return Optional.of(e);
             }
         };
+
+  static Stream<DeclaredType> allSuperTypes(Types types, DeclaredType typeMirror) {
+    return types.directSupertypes(typeMirror)
+        .stream()
+        .map(Visitors.asDeclaredType::visit)
+        .flatMap(DataTypes.Opt::asStream)
+        .flatMap(s -> Stream.concat(Stream.of(s), allSuperTypes(types, s)));
+  }
 }

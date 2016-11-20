@@ -30,32 +30,56 @@
 package org.derive4j.hkt.processor;
 
 import com.google.auto.service.AutoService;
-import java.util.Map;
-import org.derive4j.hkt.HktConfig;
-import org.derive4j.hkt.__;
-import org.derive4j.hkt.processor.DataTypes.*;
-import org.derive4j.hkt.processor.JavaCompiler.OpenJdkSpecificApi;
-
-import javax.annotation.processing.*;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.*;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.ElementFilter;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
-import javax.tools.Diagnostic;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.Messager;
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.annotation.processing.Processor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.PackageElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
+import javax.tools.Diagnostic;
+import org.derive4j.hkt.HktConfig;
+import org.derive4j.hkt.__;
+import org.derive4j.hkt.processor.DataTypes.HkTypeError;
+import org.derive4j.hkt.processor.DataTypes.HktConf;
+import org.derive4j.hkt.processor.DataTypes.HktDecl;
+import org.derive4j.hkt.processor.DataTypes.IO;
+import org.derive4j.hkt.processor.DataTypes.Opt;
+import org.derive4j.hkt.processor.DataTypes.P2;
+import org.derive4j.hkt.processor.DataTypes.Unit;
+import org.derive4j.hkt.processor.DataTypes.Valid;
+import org.derive4j.hkt.processor.JavaCompiler.OpenJdkSpecificApi;
 
 import static java.lang.Math.min;
 import static java.lang.String.format;
-import static org.derive4j.hkt.processor._HkTypeError.*;
+import static org.derive4j.hkt.processor._HkTypeError.HKTInterfaceDeclIsRawType;
+import static org.derive4j.hkt.processor._HkTypeError.HKTypesNeedAtLeastOneTypeParameter;
+import static org.derive4j.hkt.processor._HkTypeError.NestedTCWitnessMustBeSimpleType;
+import static org.derive4j.hkt.processor._HkTypeError.NestedTCWitnessMustBeStaticFinal;
+import static org.derive4j.hkt.processor._HkTypeError.NotMatchingTypeParams;
+import static org.derive4j.hkt.processor._HkTypeError.TCWitnessMustBeNestedClassOrClass;
+import static org.derive4j.hkt.processor._HkTypeError.WrongHKTInterface;
 
 @AutoService(Processor.class)
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
@@ -90,7 +114,7 @@ public final class HktProcessor extends AbstractProcessor {
             .parallelStream()
             .flatMap(tel -> Stream.concat(Stream.of(tel), allInnerTypes(tel)));
 
-        final Stream<HktDecl> targetTypes = allTypes.flatMap(this::asHktDecl);
+        final Stream<HktDecl> targetTypes = allTypes.map(this::asHktDecl).flatMap(Opt::asStream);
 
         final Stream<Valid<List<HkTypeError>>> validations = targetTypes.map(this::checkHktType);
 
@@ -133,12 +157,8 @@ public final class HktProcessor extends AbstractProcessor {
                 (allTypes.stream(), allTypes.stream().flatMap(this::allInnerTypes));
     }
 
-    private Stream<HktDecl> asHktDecl(TypeElement tEl) {
-        return tEl.getInterfaces().stream()
-            .map(this::asHktInterface)
-            .flatMap(Opt::asStream)
-            .limit(1)
-            .map(hktInterface -> _HktDecl.of(tEl, hktInterface, hktConf(tEl)));
+    private Optional<HktDecl> asHktDecl(TypeElement tEl) {
+        return findImplementedHktInterface(tEl).map(hktInterface -> _HktDecl.of(tEl, hktInterface, hktConf(tEl)));
     }
 
     private Valid<List<HkTypeError>> checkHktType(HktDecl hktDecl) {
@@ -230,11 +250,22 @@ public final class HktProcessor extends AbstractProcessor {
                         : Optional.of(NestedTCWitnessMustBeStaticFinal(witness))));
     }
 
+    private Optional<DeclaredType> findImplementedHktInterface(TypeElement typeElement) {
+        return Visitors.asDeclaredType.visit(typeElement.asType())
+            .flatMap(declaredType -> allSuperTypes(declaredType).map(this::asHktInterface).flatMap(Opt::asStream).findFirst());
+    }
+
+    private Stream<DeclaredType> allSuperTypes(DeclaredType typeMirror) {
+        return Visitors.allSuperTypes(Types, typeMirror);
+    }
 
     private Optional<DeclaredType> asHktInterface(TypeMirror tm) {
         return Visitors.asDeclaredType.visit(tm)
-            .filter(declaredType ->  Elts.getPackageOf(declaredType.asElement()).equals(Elts.getPackageOf(__Elt)))
-            .filter(declaredType -> Types.isSubtype(declaredType, Types.erasure(__Elt.asType())));
+            .filter(declaredType -> Elts.getPackageOf(declaredType.asElement()).equals(Elts.getPackageOf(__Elt)))
+            .filter(declaredType -> Types.isSubtype(declaredType, Types.erasure(__Elt.asType())))
+            .filter(declaredType -> !declaredType.getTypeArguments()
+                .stream()
+                .allMatch(typeArg -> typeArg.getKind() == TypeKind.TYPEVAR));
     }
 
     private IO<Unit> reportErrors(HktDecl hktDecl, List<HkTypeError> errors) {
@@ -312,13 +343,9 @@ public final class HktProcessor extends AbstractProcessor {
 
         return format("%s should %s %s", tel.toString(), tel.getKind() == ElementKind.CLASS ? "implements" : "extends",
 
-            Opt.cata(tel.getInterfaces().stream()
-                    .map(this::asHktInterface)
-                    .flatMap(Opt::asStream)
-                    .map(hktInterface -> hktInterface.getTypeArguments().stream()
+            Opt.cata(findImplementedHktInterface(tel)
+                    .flatMap(hktInterface -> hktInterface.getTypeArguments().stream()
                         .findFirst().flatMap(tm -> asValidTCWitness(tel, tm)))
-                    .flatMap(Opt::asStream)
-                    .findFirst()
 
                 , tcWitness -> expectedHktInterface(tel, tcWitness.toString())
 

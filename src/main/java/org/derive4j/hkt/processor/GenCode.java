@@ -226,11 +226,7 @@ final class GenCode {
     }
 
     private Stream<DeclaredType> allSuperTypes(DeclaredType typeMirror) {
-        return Types.directSupertypes(typeMirror)
-            .stream()
-            .map(Visitors.asDeclaredType::visit)
-            .flatMap(DataTypes.Opt::asStream)
-            .flatMap(s -> Stream.concat(Stream.of(s), allSuperTypes(s)));
+        return Visitors.allSuperTypes(Types, typeMirror);
     }
 
     private static String uncapitalize(final CharSequence s) {
