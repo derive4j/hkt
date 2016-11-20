@@ -270,7 +270,12 @@ public final class HktProcessor extends AbstractProcessor {
 
     private Optional<DeclaredType> findImplementedHktInterface(TypeElement typeElement) {
         return Visitors.asDeclaredType.visit(typeElement.asType())
-            .flatMap(declaredType -> allSuperTypes(declaredType).map(this::asHktInterface).flatMap(Opt::asStream).findFirst());
+            .flatMap(declaredType -> allSuperTypes(declaredType).map(this::asHktInterface).flatMap(Opt::asStream).findFirst())
+            .filter(hktInterface ->
+                Types.directSupertypes(typeElement.asType()).stream().anyMatch(tm -> Types.isSameType(tm ,hktInterface)
+                || Types.directSupertypes(typeElement.asType()).stream()
+                        .noneMatch(s -> Types.isSubtype(s, hktInterface))
+                ));
     }
 
     private Stream<DeclaredType> allSuperTypes(DeclaredType typeMirror) {
