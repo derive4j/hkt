@@ -8,33 +8,4 @@ package org.derive4j.hkt;
  * @param <C> the 3rd type parameter of the type constructor
  * @param <D> the 4th type parameter of the type constructor
  */
-public interface __4<f, A, B, C, D> extends __3<__<f, A>, B, C, D> {
-
-  static <f, A, B, C, D> __4<f, A, B, C, D> coerce(__<__<__<__<f, A>, B>, C>, D> fabcd) {
-    return (__4<f, A, B, C, D>) fabcd;
-  }
-
-  /**
-   * Reify the higher kinded type equality:<pre>
-   * {@code __<__<__<__<f, A>, B>, C>, D>}  =:= {@code __4<f, A, B, C, D>}</pre>
-   * that is guaranteed by the hkt type checker.
-   *
-   * @return a TypeEq instance witness of the type equality.
-   */
-  @SuppressWarnings("unchecked")
-  static <f, A, B, C, D> TypeEq<__<__<__<__<f, A>, B>, C>, D>, __4<f, A, B, C, D>> eq__() {
-    return (TypeEq) TypeEq.refl();
-  }
-
-  /**
-   * Reify the higher kinded type equality:<pre>
-   * {@code __3<__<f, A>, B, C, D>}  =:= {@code __4<f, A, B, C, D>}</pre>
-   * that is guaranteed by the hkt type checker.
-   *
-   * @return a TypeEq instance witness of the type equality.
-   */
-  @SuppressWarnings("unchecked")
-  static <f, A, B, C, D> TypeEq<__3<__<f, A>, B, C, D>, __4<f, A, B, C, D>> eq__3() {
-    return (TypeEq) TypeEq.refl();
-  }
-}
+public interface __4<f, A, B, C, D> extends __3<__<f, A>, B, C, D> {}
