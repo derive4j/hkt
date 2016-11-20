@@ -2,7 +2,7 @@ package org.derive4j.hkt;
 
 /**
  * Represents a higher order type (or higher kinded type or type constructor) of arity 2
- * @param <f> the 'witness' type (represented by an inner 'µ' class by the implementor) of the type to be lifted as a type constructor
+ * @param <f> the 'witness' of the class/interface to be lifted as type constructor: a static nested class or enum, or the class applied with wildcard type arguments.
  * @param <A> the 1st type parameter of the type constructor
  * @param <B> the 2nd type parameter of the type constructor
  */

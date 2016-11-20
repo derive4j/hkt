@@ -135,13 +135,92 @@ public abstract class TypeEq<A, B> implements __2<TypeEq.µ, A, B> {
 
   /**
    * Reify the higher kinded type equality:<pre>
-   * {@code __<__<__<__<__<f, A>, B>, C>, D>, E>}  =:= {@code __4<f, A, B, C, D>}</pre>
+   * {@code __<__<__<__<__<f, A>, B>, C>, D>, E>}  =:= {@code __5<f, A, B, C, D, E>}</pre>
    * that is guaranteed by the hkt type checker.
    *
    * @return a TypeEq instance witness of the type equality.
    */
   @SuppressWarnings("unchecked")
   public static <f, A, B, C, D, E> TypeEq<__<__<__<__<__<f, A>, B>, C>, D>, E>, __5<f, A, B, C, D, E>> __5() {
+    return (TypeEq) TypeEq.refl();
+  }
+
+  /**
+   * Safe cast to __6. (guaranteed by the hkt type checker).
+   */
+  public static <f, A, B, C, D, E, F> __6<f, A, B, C, D, E, F> as__6(__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F> fabcdef) {
+    return (__6<f, A, B, C, D, E, F>) fabcdef;
+  }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>}  =:= {@code __6<f, A, B, C, D, E, F>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @return a TypeEq instance witness of the type equality.
+   */
+  @SuppressWarnings("unchecked")
+  public static <f, A, B, C, D, E, F> TypeEq<__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>, __6<f, A, B, C, D, E, F>> __6() {
+    return (TypeEq) TypeEq.refl();
+  }
+
+  /**
+   * Safe cast to __7. (guaranteed by the hkt type checker).
+   */
+  public static <f, A, B, C, D, E, F, G> __7<f, A, B, C, D, E, F, G> as__7(__<__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>, G>
+      fabcdefg) {
+    return (__7<f, A, B, C, D, E, F, G>) fabcdefg;
+  }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __<__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>, G>}  =:= {@code  __7<f, A, B, C, D, E, F, G>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @return a TypeEq instance witness of the type equality.
+   */
+  @SuppressWarnings("unchecked")
+  public static <f, A, B, C, D, E, F, G> TypeEq<__<__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>, G>, __7<f, A, B, C, D, E, F, G>> __7() {
+    return (TypeEq) TypeEq.refl();
+  }
+
+
+  /**
+   * Safe cast to __8. (guaranteed by the hkt type checker).
+   */
+  public static <f, A, B, C, D, E, F, G, H> __8<f, A, B, C, D, E, F, G, H> as__8(__<__<__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>, G>, H> fabcdefgh) {
+    return (__8<f, A, B, C, D, E, F, G, H>) fabcdefgh;
+  }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __<__<__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>, G>, H>}  =:= {@code  __8<f, A, B, C, D, E, F, G, H>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @return a TypeEq instance witness of the type equality.
+   */
+  @SuppressWarnings("unchecked")
+  public static <f, A, B, C, D, E, F, G, H> TypeEq<__<__<__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>, G>, H>, __8<f, A, B, C, D, E, F, G, H>> __8() {
+    return (TypeEq) TypeEq.refl();
+  }
+
+
+  /**
+   * Safe cast to __9. (guaranteed by the hkt type checker).
+   */
+  public static <f, A, B, C, D, E, F, G, H, I> __9<f, A, B, C, D, E, F, G, H, I> as__9(__<__<__<__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>, G>, H>, I> fabcdefghi) {
+    return (__9<f, A, B, C, D, E, F, G, H, I>) fabcdefghi;
+  }
+
+  /**
+   * Reify the higher kinded type equality:<pre>
+   * {@code __<__<__<__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>, G>, H>, I>}  =:= {@code  __9<f, A, B, C, D, E, F, G, H, I>}</pre>
+   * that is guaranteed by the hkt type checker.
+   *
+   * @return a TypeEq instance witness of the type equality.
+   */
+  @SuppressWarnings("unchecked")
+  public static <f, A, B, C, D, E, F, G, H, I> TypeEq<__<__<__<__<__<__<__<__<__<f, A>, B>, C>, D>, E>, F>, G>, H>, I>, __9<f, A, B, C, D, E, F, G, H, I>> __9() {
     return (TypeEq) TypeEq.refl();
   }
 
