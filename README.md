@@ -131,7 +131,7 @@ package myorg.data;
 final class Hkt {
   private Hkt() {}
   
-  static <A> Maybe<A> asMaybe(final __<Maybe.µ, A> hkt) {
+  static <A> Maybe<A> toMaybe(final __<Maybe.µ, A> hkt) {
     return (Maybe<A>) hkt;
   }
 }
@@ -143,7 +143,7 @@ package myorg.data;
 final class MyHktList {
   private MyHktList() {}
   
-  static <A> List<A> asList(final __<List.µ, A> hkt) {
+  static <A> List<A> toList(final __<List.µ, A> hkt) {
     return (List<A>) hkt;
   }
 }
