@@ -66,7 +66,8 @@ By default the annotation processor will generate a `Hkt` class in each package 
 
 The generated class contains casting methods and factories of [TypeEq](src/main/java/org/derive4j/hkt/TypeEq.java) that allow you to safely recover the original type from its hk-encoding.
 
-Code generation can be customize by using the [HktConfig](rc/main/java/org/derive4j/hkt/HktConfig.java) annotation (on package-info or classes).
+Code generation can be customize by using the [HktConfig](src/main/java/org/derive4j/hkt/HktConfig.java) annotation (on
+package-info or classes).
 
 
 ## Maven
