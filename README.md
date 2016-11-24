@@ -27,7 +27,7 @@ We say that `__<HkTest.w, A>` is the HK encoding of HkTest<A> and call `w` the *
 
 ## What about binary type constructors ? Ternary ? And more ?
 
-@derive4j/hkt declares interfaces `__<f, A>`, `__2<f, A, B>` up to `__9<f, A, B, C, D, E, F, G, H, I>`.
+@derive4j/hkt supplies interfaces `__<f, A>`, `__2<f, A, B>` up to `__9<f, A, B, C, D, E, F, G, H, I>`.
 
 For example, a disjoint union type commonly called "Either" could be declared this way :
 ```java
