@@ -28,7 +28,7 @@ class HkTest<A> implements __<HkTest.w, A> {
 We say that `__<HkTest.w, A>` is the HK encoding of HkTest<A>.
 
 ## Obligatory Monad example:
-The higher kinded polymorpism allow us the express things that are normaly impossible in Java. Eg.:
+The higher kinded polymorphism gain by the encoding allows us the express things that are normally impossible in Java. Eg.:
 ```java
 public interface Monad<m> {
   <A> __<m, A> pure(A a);
@@ -42,7 +42,8 @@ public interface Monad<m> {
 ```
 
 ### Aliases interfaces
-You may want to create aliases of derive4j hkt `__*` interfaces that better suit you naming preferences, maybe also adding some default methods. Eg.:
+You may want to create aliases of derive4j hkt `__*` interfaces that better suit your naming preferences, maybe also adding
+some default methods. Eg.:
 
 ```java
 interface HigherKind1<TC extends HigherKind1<TC, ?>, T> extends __<TC, T> {
@@ -51,7 +52,7 @@ interface HigherKind1<TC extends HigherKind1<TC, ?>, T> extends __<TC, T> {
   }
 }
 ```
-And so you hk encoded classes would look like:
+And so your hk-encoded classes would look like:
 ```java
 class HkTest<A> implements HigherKind1<HkTest<?>, A> {
 
@@ -63,9 +64,9 @@ In any case, just try: if you do something wrong the annotation processor shall 
 ## Do not cast! Use the generated safe cast methods
 By default the annotation processor will generate a `Hkt` class in each package that contains hk-encoded classes.
 
-The generated class contains casting methods and factories of [TypeEq](blob/master/src/main/java/org/derive4j/hkt/TypeEq.java) that allow you to safely recover the original type from its hk-encoding.
+The generated class contains casting methods and factories of [TypeEq](src/main/java/org/derive4j/hkt/TypeEq.java) that allow you to safely recover the original type from its hk-encoding.
 
-Code generation can be customize by using the [HktConfig](blob/master/src/main/java/org/derive4j/hkt/HktConfig.java) annotation (on package-info or classes).
+Code generation can be customize by using the [HktConfig](rc/main/java/org/derive4j/hkt/HktConfig.java) annotation (on package-info or classes).
 
 
 ## Maven
