@@ -176,7 +176,7 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
     private Optional<HktDecl> asHktDecl(TypeElement tEl) {
-        return findImplementedHktInterface(tEl).map(hktInterface -> _HktDecl.of(tEl, hktInterface, hktConf(tEl)));
+        return findImplementedHktInterface(tEl.asType()).map(hktInterface -> _HktDecl.of(tEl, hktInterface, hktConf(tEl)));
     }
 
     private Valid<List<HkTypeError>> checkHktType(HktDecl hktDecl) {
@@ -268,17 +268,14 @@ public final class HktProcessor extends AbstractProcessor {
                         : Optional.of(NestedTCWitnessMustBeStaticFinal(witness))));
     }
 
-    private Optional<DeclaredType> findImplementedHktInterface(TypeElement typeElement) {
-        return Visitors.asDeclaredType.visit(typeElement.asType())
-            .flatMap(declaredType -> allSuperTypes(declaredType).map(this::asHktInterface).flatMap(Opt::asStream).findFirst())
+    private Optional<DeclaredType> findImplementedHktInterface(TypeMirror type) {
+        return allSuperTypes(type).map(this::asHktInterface).flatMap(Opt::asStream).findFirst()
             .filter(hktInterface ->
-                Types.directSupertypes(typeElement.asType()).stream().anyMatch(tm -> Types.isSameType(tm ,hktInterface)
-                || Types.directSupertypes(typeElement.asType()).stream()
-                        .noneMatch(s -> Types.isSubtype(s, hktInterface))
-                ));
+                    allSuperTypes(type).noneMatch(s -> !Types.isSubtype(hktInterface, s)
+                        && findImplementedHktInterface(s.asElement().asType()).isPresent()));
     }
 
-    private Stream<DeclaredType> allSuperTypes(DeclaredType typeMirror) {
+    private Stream<DeclaredType> allSuperTypes(TypeMirror typeMirror) {
         return Visitors.allSuperTypes(Types, typeMirror);
     }
 
@@ -366,7 +363,7 @@ public final class HktProcessor extends AbstractProcessor {
 
         return format("%s should %s %s", tel.toString(), tel.getKind() == ElementKind.CLASS ? "implements" : "extends",
 
-            Opt.cata(findImplementedHktInterface(tel)
+            Opt.cata(findImplementedHktInterface(tel.asType())
                     .flatMap(hktInterface -> hktInterface.getTypeArguments().stream()
                         .findFirst().flatMap(tm -> asValidTCWitness(tel, tm)))
 

@@ -38,7 +38,7 @@ final class Visitors {
             }
         };
 
-  static Stream<DeclaredType> allSuperTypes(Types types, DeclaredType typeMirror) {
+  static Stream<DeclaredType> allSuperTypes(Types types, TypeMirror typeMirror) {
     return types.directSupertypes(typeMirror)
         .stream()
         .map(Visitors.asDeclaredType::visit)
