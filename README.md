@@ -119,7 +119,7 @@ Consider the example of the previous section : we would like the generated metho
 package myorg.data;
 ```
 
-Note that configuration is handled hierarchically through packages, classes and inner classes. That means that would you want to keep your `toX` methods and at the same time have the one for `List` generated in its own package, you could declare a `package-info` as afore mentionned and then annotate the `List` class this way:
+Note that configuration is handled hierarchically through packages, classes and inner classes. That means that would you want to keep your `toX` methods and at the same time have the one for `List` generated in its own class, you could declare a `package-info` as afore mentionned and then annotate the `List` class this way:
 ```java
 @HktConfig(generateIn = "MyHktList")
 class List<A> implements __<List.µ, A> {...}
