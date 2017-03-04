@@ -1,5 +1,6 @@
 package org.derive4j.hkt.processor;
 
+import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.text.MessageFormat;
 import java.util.List;
@@ -26,6 +27,7 @@ import org.derive4j.hkt.processor.DataTypes.Opt;
 import org.derive4j.hkt.processor.DataTypes.P2;
 import org.derive4j.hkt.processor.DataTypes.Unit;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static org.derive4j.hkt.processor.DataTypes.Unit.unit;
@@ -143,7 +145,8 @@ final class GenCode {
             classVisibility.prefix(), genSimpleClassName, explicitImports, methods);
 
         return IO.effect(() -> {
-            try (Writer classWriter = Filer.createSourceFile(genClassName).openWriter()) {
+            try (Writer classWriter = new OutputStreamWriter(
+                    Filer.createSourceFile(genClassName).openOutputStream(), UTF_8)) {
                 classWriter.append(classContent);
                 classWriter.flush();
             }
