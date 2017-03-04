@@ -156,12 +156,12 @@ final class MyHktList {
 <dependency>
   <groupId>org.derive4j.hkt</groupId>
   <artifactId>hkt</artifactId>
-  <version>0.9.1</version>
+  <version>0.9.2</version>
 </dependency>
 ```
 [search.maven]: http://search.maven.org/#search|ga|1|org.derive4j.hkt
 
 ### Gradle
 ```
-compile(group: 'org.derive4j.hkt', name: 'hkt', version: '0.9.1', ext: 'jar')
+compile(group: 'org.derive4j.hkt', name: 'hkt', version: '0.9.2', ext: 'jar')
 ```
