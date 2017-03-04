@@ -33,10 +33,10 @@ repositories {
 
 ext {
   isSnapshot = true
-  hktBaseVersion = '0.9.1'
+  hktBaseVersion = '0.9.2'
   hktVersion = hktBaseVersion + (isSnapshot ? '-SNAPSHOT' : '')
 
-  derive4jVersion = '0.9.1'
+  derive4jVersion = '0.10.2'
   autoService = 'com.google.auto.service:auto-service:1.0-rc2'
 }
 
