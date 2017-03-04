@@ -293,20 +293,20 @@ public final class HktProcessor extends AbstractProcessor {
         final HktConf conf = _HktDecl.getConf(hktDecl);
 
         final Stream<IO<Unit>> effects = errors.stream().map(_HkTypeError.cases()
-            .HKTInterfaceDeclIsRawType(IO.effect(() -> Messager.printMessage
+            .HKTInterfaceDeclIsRawType_(IO.effect(() -> Messager.printMessage
                 (Diagnostic.Kind.ERROR, hKTInterfaceDeclIsRawTypeErrorMessage(typeElement, conf), typeElement)))
 
-            .HKTypesNeedAtLeastOneTypeParameter(IO.effect(() -> Messager.printMessage
+            .HKTypesNeedAtLeastOneTypeParameter_(IO.effect(() -> Messager.printMessage
                 (Diagnostic.Kind.ERROR, hKTypesNeedAtLeastOneTypeParameterErrorMessage(typeElement), typeElement)))
 
-            .WrongHKTInterface(IO.effect(() -> Messager.printMessage
+            .WrongHKTInterface_(IO.effect(() -> Messager.printMessage
                 (Diagnostic.Kind.ERROR, wrongHKTInterfaceErrorMessage(typeElement, conf), typeElement)))
 
             .NotMatchingTypeParams(typeParameterElements -> IO.effect(() ->
                 typeParameterElements.forEach(typeParameterElement -> Messager.printMessage
                     (Diagnostic.Kind.ERROR, notMatchingTypeParamErrorMessage(typeElement, conf), typeParameterElement))))
 
-            .TCWitnessMustBeNestedClassOrClass(IO.effect(() -> Messager.printMessage
+            .TCWitnessMustBeNestedClassOrClass_(IO.effect(() -> Messager.printMessage
                 (Diagnostic.Kind.ERROR, tcWitnessMustBeNestedClassOrClassErrorMessage(typeElement, conf), typeElement)))
 
             .NestedTCWitnessMustBeSimpleType(tcWitnessElement -> IO.effect(() -> Messager.printMessage
