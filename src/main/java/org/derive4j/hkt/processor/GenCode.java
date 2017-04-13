@@ -1,5 +1,16 @@
 package org.derive4j.hkt.processor;
 
+import org.derive4j.hkt.HktConfig;
+import org.derive4j.hkt.TypeEq;
+import org.derive4j.hkt.processor.DataTypes.*;
+
+import javax.annotation.processing.Filer;
+import javax.lang.model.element.*;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.text.MessageFormat;
@@ -9,23 +20,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.annotation.processing.Filer;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.PackageElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.util.ElementFilter;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
-import org.derive4j.hkt.HktConfig;
-import org.derive4j.hkt.TypeEq;
-import org.derive4j.hkt.processor.DataTypes.HktDecl;
-import org.derive4j.hkt.processor.DataTypes.IO;
-import org.derive4j.hkt.processor.DataTypes.Opt;
-import org.derive4j.hkt.processor.DataTypes.P2;
-import org.derive4j.hkt.processor.DataTypes.Unit;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.joining;
@@ -71,6 +65,8 @@ final class GenCode {
         "  {0}static {2} TypeEq<{3}, {1}> {5}()'{'\n" +
         "    return (TypeEq) TypeEq.refl();\n" +
         "  }";
+
+    private static final String TYPE_PARAMS_TEMPLATE = "<{0}>";
 
     private final Elements Elts;
 
@@ -217,7 +213,7 @@ final class GenCode {
 
         TypeElement packageRelativeTypeElement = packageRelativeTypeElement(typeConstructor);
 
-        CharSequence typeParams =  typeConstructor.asType().toString().substring(typeConstructor.getQualifiedName().length());
+        CharSequence typeParams = MessageFormat.format(TYPE_PARAMS_TEMPLATE, showTypeParams(typeConstructor));
 
         String hktInterfaceAsString = hktInterface.toString()
             .replace(Visitors.asTypeElement.visit(hktInterface.asElement()).get().getQualifiedName(), hktInterface
@@ -240,6 +236,24 @@ final class GenCode {
 
     private Stream<DeclaredType> allSuperTypes(DeclaredType typeMirror) {
         return Visitors.allSuperTypes(Types, typeMirror);
+    }
+
+    private static String showTypeParams(TypeElement te) {
+        return te
+            .getTypeParameters()
+            .stream()
+            .map(GenCode::showTypeParam)
+            .collect(joining(", "));
+    }
+
+    private static String showTypeParam(TypeParameterElement tpe) {
+        final String bounds = tpe.getBounds()
+            .stream()
+            .map(TypeMirror::toString)
+            .filter(s -> !s.contentEquals("java.lang.Object"))
+            .collect(joining(", "));
+
+        return tpe.asType().toString() + (bounds.isEmpty() ? "" : " extends " + bounds);
     }
 
     private static String uncapitalize(final CharSequence s) {

@@ -33,7 +33,7 @@ repositories {
 
 ext {
   isSnapshot = true
-  hktBaseVersion = '1.0'
+  hktBaseVersion = '0.9.3'
   hktVersion = hktBaseVersion + (isSnapshot ? '-SNAPSHOT' : '')
 
   derive4jVersion = '0.10.2'
