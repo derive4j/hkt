@@ -7,7 +7,7 @@ buildscript {
   }
   dependencies {
     //Check for the latest version here: http://plugins.gradle.org/plugin/com.jfrog.artifactory
-    classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:4.2.0'
+    classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:4.5.4'
   }
 }
 
@@ -36,8 +36,8 @@ ext {
   hktBaseVersion = '0.9.3'
   hktVersion = hktBaseVersion + (isSnapshot ? '-SNAPSHOT' : '')
 
-  derive4jVersion = '0.10.2'
-  autoService = 'com.google.auto.service:auto-service:1.0-rc2'
+  derive4jVersion = '0.12.3'
+  autoService = 'com.google.auto.service:auto-service:1.0-rc4'
 }
 
 
@@ -57,7 +57,7 @@ dependencies {
   apt autoService
 
   testCompile 'junit:junit:4.12'
-  testCompile 'com.google.testing.compile:compile-testing:0.8'
+  testCompile 'com.google.testing.compile:compile-testing:0.14'
   testApt rootProject
 }
 
