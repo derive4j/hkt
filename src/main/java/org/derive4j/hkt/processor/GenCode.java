@@ -47,7 +47,9 @@ final class GenCode {
     }
     private static final String CLASS_TEMPLATE = "package {0};\n" +
         "\n" +
-        "import org.derive4j.hkt.*;\n" +
+        "import org.derive4j.hkt.__;\n" +
+        "import org.derive4j.hkt.TypeEq;\n" +
+        "import io.kindedj.Hk;\n" +
         "{3}\n"+
         "\n" +
         "{1}final class {2} '{'\n" +
@@ -56,13 +58,13 @@ final class GenCode {
         "{4}\n" +
         "}";
 
-    private static final String METHODS_TEMPLATE = "  {0}static {2} {1} " +
-        "{4}({3} hkt) '{'\n" +
+    private static final String METHODS_TEMPLATE = "  @SuppressWarnings(\"unchecked\")\n" +
+        "  {0}static {2} {1} {5}({3} hkt) '{'\n" +
         "    return ({1}) hkt;\n" +
         "  }\n" +
         "\n" +
         "  @SuppressWarnings(\"unchecked\")\n" +
-        "  {0}static {2} TypeEq<{3}, {1}> {5}()'{'\n" +
+        "  {0}static {2} TypeEq<{4}, {1}> {6}()'{'\n" +
         "    return (TypeEq) TypeEq.refl();\n" +
         "  }";
 
@@ -215,14 +217,21 @@ final class GenCode {
 
         CharSequence typeParams = MessageFormat.format(TYPE_PARAMS_TEMPLATE, showTypeParams(typeConstructor));
 
+        String hkInterfaceFQN = Visitors.asTypeElement.visit(hktInterface.asElement()).get().getQualifiedName().toString();
+
+        String kindedJInterfaceAsString = hktInterface.toString()
+            .replace("<" + hkInterfaceFQN, "<? extends Hk")
+            .replace(hkInterfaceFQN, "Hk")
+            .replace(packageRelativeTypeElement.getQualifiedName(), packageRelativeTypeElement.getSimpleName());
+
         String hktInterfaceAsString = hktInterface.toString()
-            .replace(Visitors.asTypeElement.visit(hktInterface.asElement()).get().getQualifiedName(), hktInterface
-                .asElement().getSimpleName())
+            .replace(hkInterfaceFQN, hktInterface.asElement().getSimpleName())
+            .replace("io.kindedj.Hk", "Hk")
             .replace(packageRelativeTypeElement.getQualifiedName(), packageRelativeTypeElement.getSimpleName());
 
         return _P2.of(visibility,
             MessageFormat.format(METHODS_TEMPLATE, visibility.prefix(), typeAsString, typeParams,
-                hktInterfaceAsString, coerceMethodName, typeEqMethodName));
+                kindedJInterfaceAsString, hktInterfaceAsString, coerceMethodName, typeEqMethodName));
     }
 
     private TypeElement packageRelativeTypeElement(TypeElement typeElement) {

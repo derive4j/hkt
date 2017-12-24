@@ -50,6 +50,8 @@ dependencies {
 
   compile files(Jvm.current().toolsJar)
 
+  compile 'io.kindedj:kindedj:1.0.1'
+
   compileOnly "org.derive4j:derive4j-annotation:${derive4jVersion}"
   compileOnly autoService
 
