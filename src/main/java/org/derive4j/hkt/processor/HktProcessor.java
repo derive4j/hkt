@@ -87,7 +87,6 @@ import static org.derive4j.hkt.processor._HkTypeError.TCWitnessMustBeNestedClass
 import static org.derive4j.hkt.processor._HkTypeError.WrongHKTInterface;
 
 @AutoService(Processor.class)
-@SupportedSourceVersion(SourceVersion.RELEASE_8)
 @SupportedAnnotationTypes("*")
 public final class HktProcessor extends AbstractProcessor {
 
@@ -105,6 +104,11 @@ public final class HktProcessor extends AbstractProcessor {
     private ExecutableElement withVisibilityConfMethod;
     private ExecutableElement coerceMethodNameConfMethod;
     private ExecutableElement typeEqMethodNameConfMethod;
+
+    @Override
+    public SourceVersion getSupportedSourceVersion() {
+        return SourceVersion.latest();
+    }
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
