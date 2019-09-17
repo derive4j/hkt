@@ -1,29 +1,14 @@
-
-buildscript {
-  repositories {
-    maven {
-      url 'https://plugins.gradle.org/m2/'
-    }
-  }
-  dependencies {
-    //Check for the latest version here: http://plugins.gradle.org/plugin/com.jfrog.artifactory
-    classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:4.2.0'
-  }
-}
-
 plugins {
-  id 'net.ltgt.apt' version '0.6'
+  id 'com.jfrog.artifactory' version '4.9.8'
+  id 'org.javamodularity.moduleplugin' version '1.6.0'
+  id 'idea'
+  id 'java'
+  id 'maven'
 }
-
-apply plugin: 'idea'
-apply plugin: 'java'
-apply plugin: 'net.ltgt.apt'
-apply plugin: 'maven'
-apply plugin: 'com.jfrog.artifactory'
 
 defaultTasks 'build'
 
-sourceCompatibility = '1.8'
+sourceCompatibility = '1.9'
 
 repositories {
   mavenCentral()
@@ -33,52 +18,70 @@ repositories {
 
 ext {
   isSnapshot = true
-  hktBaseVersion = '0.9.3'
+  hktBaseVersion = '0.10.0'
   hktVersion = hktBaseVersion + (isSnapshot ? '-SNAPSHOT' : '')
 
-  derive4jVersion = '0.10.2'
-  autoService = 'com.google.auto.service:auto-service:1.0-rc2'
+  autoService = 'com.google.auto.service:auto-service:1.0-rc6'
+  derive4jVersion = '1.1.1'
+  derive4jAnnotation = "org.derive4j:derive4j-annotation:$derive4jVersion"
 }
-
 
 group 'org.derive4j.hkt'
 version hktVersion
 
-import org.gradle.internal.jvm.Jvm
-
 dependencies {
-
-  compile files(Jvm.current().toolsJar)
-
-  compileOnly "org.derive4j:derive4j-annotation:${derive4jVersion}"
+  compileOnly derive4jAnnotation
   compileOnly autoService
 
-  apt "org.derive4j:derive4j:${derive4jVersion}"
-  apt autoService
+  annotationProcessor "org.derive4j:derive4j:$derive4jVersion"
+  annotationProcessor autoService
 
   testCompile 'junit:junit:4.12'
-  testCompile 'com.google.testing.compile:compile-testing:0.8'
-  testApt rootProject
+  testCompile('com.google.testing.compile:compile-testing:0.18') {
+    exclude module: 'auto-value'
+  }
+  testCompileOnly derive4jAnnotation
+  testCompileOnly autoService
+
+  testAnnotationProcessor rootProject
+  testImplementation rootProject
 }
 
 test {
   testLogging.showStandardStreams = true
+  moduleOptions {
+    runOnClasspath = true
+  }
 }
 
+sourceSets {
+  generated {
+    java.srcDir "$buildDir/generated/sources/annotationProcessor/java/main"
+  }
+}
 
 tasks.withType(JavaCompile) {
   options.compilerArgs << '-Xlint:all'
   options.encoding = "UTF-8"
 }
 
-task javadocJar(type: Jar, dependsOn: 'javadoc') {
-  classifier = 'javadoc'
+task myJavadocs(type: Javadoc) {
+  source = sourceSets.main.java + sourceSets.generated.java
+  classpath = sourceSets.main.compileClasspath
+  doFirst {
+    options.addStringOption('-module-path', classpath.asPath)
+  }
+  verbose = true
+}
+
+task javadocJar(type: Jar, dependsOn: 'myJavadocs') {
+  archiveClassifier = 'javadoc'
   from 'build/docs/javadoc'
 }
 
 task sourcesJar(type: Jar) {
-  from sourceSets.main.allSource
-  classifier = 'sources'
+  archiveClassifier = 'sources'
+  from sourceSets.main.allSource + sourceSets.generated.java
 }
 
 artifacts {
@@ -92,29 +95,29 @@ install {
     pom {
       groupId = project.group
       project {
-        name 'HKT'
+        name = 'HKT'
         packaging 'jar'
         description 'Interfaces and type-checker for higher kinded types support in Java'
         url 'https://github.com/derive4j/hkt'
         organization {
-          name 'Derive4J HKT contributors'
+          name = 'Derive4J HKT contributors'
         }
         scm {
           url 'git://github.com/derive4j/hkt.git'
         }
         licenses {
           license {
-            name 'BSD-3'
+            name = 'BSD-3'
             url 'https://github.com/derive4j/hkt/blob/master/LICENSE'
             distribution 'repo'
           }
         }
         developers {
           developer {
-            name 'Grégoire Neuville'
+            name = 'Grégoire Neuville'
           }
           developer {
-            name 'Jean-Baptiste Giraudeau'
+            name = 'Jean-Baptiste Giraudeau'
             email 'jb@giraudeau.info'
           }
         }
@@ -149,8 +152,4 @@ artifactory {
       repoKey = 'libs-releases'  //The Artifactory (preferably virtual) repository key to resolve from
     }
   }
-}
-
-task env << {
-  println System.getenv()
 }
