@@ -55,6 +55,7 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.element.ModuleElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
@@ -86,7 +87,6 @@ import static org.derive4j.hkt.processor._HkTypeError.TCWitnessMustBeNestedClass
 import static org.derive4j.hkt.processor._HkTypeError.WrongHKTInterface;
 
 @AutoService(Processor.class)
-@SupportedSourceVersion(SourceVersion.RELEASE_8)
 @SupportedAnnotationTypes("*")
 public final class HktProcessor extends AbstractProcessor {
 
@@ -104,6 +104,11 @@ public final class HktProcessor extends AbstractProcessor {
     private ExecutableElement withVisibilityConfMethod;
     private ExecutableElement coerceMethodNameConfMethod;
     private ExecutableElement typeEqMethodNameConfMethod;
+
+    @Override
+    public SourceVersion getSupportedSourceVersion() {
+        return SourceVersion.latest();
+    }
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -129,7 +134,7 @@ public final class HktProcessor extends AbstractProcessor {
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         final Stream<TypeElement> allTypes = ElementFilter
             .typesIn(roundEnv.getRootElements())
-            .parallelStream()
+            .stream()
             .flatMap(tel -> Stream.concat(Stream.of(tel), allInnerTypes(tel)));
 
         final Stream<HktDecl> targetTypes = allTypes.map(this::asHktDecl).flatMap(Opt::asStream);
@@ -436,7 +441,7 @@ public final class HktProcessor extends AbstractProcessor {
     }
 
     private Optional<Element> parentElt(Element elt) {
-        return Opt.cata(unNull(elt.getEnclosingElement())
+        return Opt.cata(unNull(elt.getEnclosingElement()).filter(e -> !(e instanceof ModuleElement))
             , Optional::of
             , () -> parentPkg((PackageElement) elt));
     }
